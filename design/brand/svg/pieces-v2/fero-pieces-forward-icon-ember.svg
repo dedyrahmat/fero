@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title description">
+  <title id="title">Fero Pieces Forward logo</title>
+  <desc id="description">Three staggered bars represent the pieces of a transfer.</desc>
+  <g transform="translate(0 0) scale(1)">
+    <path fill="#a33f27" d="M26 6H74A20 20 0 0 1 94 26V74A20 20 0 0 1 74 94H26A20 20 0 0 1 6 74V26A20 20 0 0 1 26 6Z"/>
+    <path fill="#fff9f2" d="M47.92 27.96Q48.95 26.25 50.95 26.25L79.95 26.25Q81.95 26.25 80.92 27.96L76.08 36.04Q75.05 37.75 73.05 37.75L44.05 37.75Q42.05 37.75 43.08 36.04ZM34.92 45.96Q35.95 44.25 37.95 44.25L70.95 44.25Q72.95 44.25 71.92 45.96L67.08 54.04Q66.05 55.75 64.05 55.75L31.05 55.75Q29.05 55.75 30.08 54.04ZM23.92 63.96Q24.95 62.25 26.95 62.25L53.95 62.25Q55.95 62.25 54.92 63.96L50.08 72.04Q49.05 73.75 47.05 73.75L20.05 73.75Q18.05 73.75 19.08 72.04Z"/>
+  </g>
+</svg>

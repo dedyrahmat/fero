@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Fero
+Comment=BitTorrent client
+Exec=fero %U
+Icon=dev.fero.desktop
+Terminal=false
+Categories=Network;FileTransfer;P2P;
+MimeType=application/x-bittorrent;x-scheme-handler/magnet;

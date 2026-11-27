@@ -1,0 +1,1900 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fero · Desktop preview</title>
+<style>
+@font-face {
+  font-family: "DM Sans";
+  src: url("fonts/DM-Sans.ttf") format("truetype");
+  font-weight: 100 1000;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("fonts/Instrument-Sans.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+:root {
+  color-scheme: light dark;
+  --wall: light-dark(#eae3da, #141311);
+  --glow: light-dark(#fcf8f2, #2d251f);
+  --paper: light-dark(#fdfbf7, #201d1a);
+  --rail: light-dark(#f3eee6, #25211e);
+  --chrome: light-dark(#f9f4ec, #292421);
+  --field: light-dark(#f7f2ea, #292522);
+  --ink: light-dark(#29231f, #f5eee5);
+  --muted: light-dark(#6e6257, #b8a99c);
+  --line: light-dark(#e6ded3, #403731);
+  --outline: light-dark(#d4c8bb, #51453c);
+  --hover: light-dark(#f5eee5, #2d2723);
+  --selected: light-dark(#f6e9df, #352923);
+  --ember: light-dark(#a33f27, #f99875);
+  --on-ember: light-dark(#fff9f2, #301811);
+  --ember-wash: light-dark(#f6e5d9, #442d24);
+  --green: light-dark(#356951, #a4c8a9);
+  --green-wash: light-dark(#e7efe4, #303b31);
+  --amber: light-dark(#805a29, #dfb587);
+  --amber-wash: light-dark(#f0e8d7, #3e3226);
+  --blue: light-dark(#4e6179, #b0bfd6);
+  --blue-wash: light-dark(#e8ecf0, #30323b);
+  --danger: light-dark(#9c382f, #ffa49a);
+  --track: light-dark(#e9e1d6, #413630);
+  --shadow: light-dark(#49311e24, #0008);
+  --heading: "Instrument Sans", system-ui, sans-serif;
+  --radius-sm: 11px;
+  --radius-md: 15px;
+  --radius-lg: 22px;
+  --radius-window: 27px;
+  --accent: var(--ember);
+  --on-accent: var(--on-ember);
+  --accent-wash: var(--selected);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-accent="harbor"] {
+  --wall: light-dark(#dcebf7, #0c1420);
+  --glow: light-dark(#f6faff, #192a3f);
+  --paper: light-dark(#f6faff, #101b2a);
+  --rail: light-dark(#eaf2fb, #152337);
+  --chrome: light-dark(#f0f6fd, #192a3f);
+  --field: light-dark(#eef5fd, #192b40);
+  --ink: light-dark(#122741, #f1f8ff);
+  --muted: light-dark(#495f77, #a7bdd3);
+  --line: light-dark(#d6e3f0, #2b415a);
+  --outline: light-dark(#b3c8dd, #405873);
+  --hover: light-dark(#e3effa, #20344b);
+  --selected: light-dark(#e1edf9, #20384c);
+  --ember: light-dark(#075963, #7cede1);
+  --amber: light-dark(#785414, #ffe09f);
+  --track: light-dark(#d9e6f4, #2a3f58);
+  --accent: light-dark(#173d70, #7cede1);
+  --on-accent: light-dark(#f1f8ff, #0b2a36);
+  --accent-wash: var(--selected);
+}
+:root[data-accent="sage"] {
+  --accent: light-dark(#39654d, #a4c8a9);
+  --on-accent: light-dark(#f9fff7, #172a1e);
+  --accent-wash: light-dark(#e8efe5, #2c3930);
+}
+:root[data-accent="indigo"] {
+  --accent: light-dark(#514e89, #bab5ec);
+  --on-accent: light-dark(#faf9ff, #252143);
+  --accent-wash: light-dark(#edeaf5, #373147);
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background: radial-gradient(ellipse at 30% 0%, var(--glow), transparent 63%), var(--wall);
+  font: 14px/1.45 "DM Sans", system-ui, sans-serif;
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .55; }
+:where(button, input, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+h1, h2, h3, p, dl, dd { margin: 0; }
+h1, h2, h3 { font-family: var(--heading); line-height: 1.14; }
+.num { font-variant-numeric: tabular-nums; }
+.quiet { color: var(--muted); }
+.icon-text { line-height: 1; font-size: 16px; }
+.preview {
+  width: min(calc(100% - 64px), 1400px);
+  margin: 31px auto 36px;
+}
+.preview-label { display: block; margin: 0 0 12px 2px; color: var(--muted); font-size: 12px; font-weight: 650; }
+.segments {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-md);
+  background: var(--field);
+}
+.segments button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+.segments button:hover { color: var(--ink); }
+.segments button[aria-pressed="true"] {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.chooser {
+  padding: 6px 31px 6px 11px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  font-size: 12px;
+  font-weight: 650;
+}
+.window {
+  overflow: hidden;
+  background: var(--paper);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-window);
+  box-shadow: 0 24px 80px var(--shadow), 0 3px 12px var(--shadow);
+}
+.titlebar {
+  height: 39px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border-bottom: 1px solid var(--line);
+  background: var(--chrome);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  user-select: none;
+}
+.lights { display: flex; position: absolute; left: 16px; gap: 7px; }
+.lights span { width: 10px; height: 10px; border-radius: 50%; background: #dc7063; }
+.lights span:nth-child(2) { background: #d8a460; }
+.lights span:nth-child(3) { background: #80a178; }
+.workspace {
+  display: grid;
+  --sidebar-width: 200px;
+  --inspector-width: 320px;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--inspector-width);
+  min-height: 705px;
+}
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--line);
+  background: var(--rail);
+  padding: 25px 13px 16px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 0 2px;
+  font: 650 24px/1 var(--heading);
+  letter-spacing: -.06em;
+}
+.mark { display: block; width: 34px; height: 34px; flex: none; }
+.nav-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 23px; }
+.nav-heading {
+  margin: 0 8px 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.nav-item {
+  min-width: 0;
+  min-height: 35px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: start;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.nav-item:hover { background: var(--hover); }
+.nav-item[aria-pressed="true"], .nav-item[aria-current="page"] { background: var(--accent-wash); color: var(--accent); font-weight: 750; }
+.nav-item .symbol {
+  width: 15px;
+  flex: none;
+  color: var(--muted);
+  text-align: center;
+  font: 650 14px/1 system-ui, sans-serif;
+}
+.nav-item:is([aria-pressed="true"], [aria-current="page"]) .symbol { color: var(--accent); }
+.nav-count { margin-inline-start: auto; padding-inline-start: 1px; color: var(--muted); }
+.about-button { position: absolute; right: 9px; min-height: 29px; color: var(--muted); }
+.library { min-width: 0; padding: 29px 26px 22px; }
+.library-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 21px;
+}
+.library h1 { font-size: clamp(31px, 3.3vw, 44px); letter-spacing: -.065em; font-weight: 650; }
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: var(--field);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.button:hover { background: var(--hover); }
+.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.primary:hover { background: color-mix(in srgb, var(--accent) 90%, var(--on-accent)); }
+.library-heading .primary { min-height: 39px; padding-inline: 14px; font-size: 13px; }
+.quiet-button { background: transparent; border-color: transparent; color: var(--muted); }
+.danger-button { color: var(--danger); }
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+.search {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+  padding: 0 10px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--muted);
+}
+.magnifier {
+  display: inline-block;
+  position: relative;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  flex: none;
+  margin: 0 2px 2px 1px;
+}
+.magnifier::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 1.5px;
+  top: 7px;
+  left: 7px;
+  transform: rotate(45deg);
+  transform-origin: left;
+  background: currentColor;
+}
+.search:focus-within { border-color: var(--accent); }
+.search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.search input:focus-visible { outline-offset: -3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+kbd {
+  flex: none;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.toolbar .chooser { max-width: 42%; }
+.transfer-grid {
+  --columns: 40px minmax(0, 1fr) minmax(86px, .43fr) 93px;
+  --column-gap: 12px;
+}
+.columns, .transfer {
+  display: grid;
+  grid-template-columns: var(--columns);
+  align-items: center;
+  column-gap: var(--column-gap);
+  padding-inline: 10px;
+}
+.columns {
+  min-height: 30px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  font-weight: 750;
+}
+.columns span:first-child { grid-column: span 2; }
+.columns span:last-child { text-align: end; }
+.rows { display: grid; gap: 4px; }
+.transfer {
+  width: 100%;
+  min-height: 71px;
+  padding-block: 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--paper), var(--rail) 17%);
+  text-align: start;
+}
+.transfer:hover { background: var(--hover); }
+.transfer[aria-pressed="true"] {
+  background: var(--accent-wash);
+  border-color: color-mix(in srgb, var(--accent), var(--line) 57%);
+}
+.transfer:focus-visible { position: relative; z-index: 1; outline-offset: -3px; }
+.file-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--tile-ink, var(--muted)) 16%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--tile-bg, var(--field));
+  color: var(--tile-ink, var(--muted));
+  font: 700 10px/1 var(--heading);
+  letter-spacing: .04em;
+}
+[data-kind="image"] { --tile-bg: var(--ember-wash); --tile-ink: var(--ember); }
+[data-kind="video"] { --tile-bg: var(--green-wash); --tile-ink: var(--green); }
+[data-kind="archive"] { --tile-bg: var(--amber-wash); --tile-ink: var(--amber); }
+[data-kind="audio"] { --tile-bg: var(--blue-wash); --tile-ink: var(--blue); }
+.transfer-name, .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.transfer-name { display: block; font-weight: 700; font-size: 14px; }
+.meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 7px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.meta .sep::before { content: "·"; }
+.status {
+  --tone: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tone);
+  font-weight: 650;
+}
+.status::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+[data-status="Downloading"] .status { --tone: var(--ember); }
+[data-status="Seeding"] .status { --tone: var(--green); }
+[data-status="Paused"] .status, [data-status="Waiting for peers"] .status { --tone: var(--amber); }
+[data-status="Fetching metadata"] .status { --tone: var(--blue); }
+[data-status="Error"] .status { --tone: var(--danger); }
+.rail-progress, .meter {
+  display: block;
+  border-radius: 10px;
+  background: var(--track);
+  overflow: hidden;
+}
+.rail-progress { height: 5px; width: 100%; }
+.meter { height: 6px; }
+.rail-progress > span, .meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  width: var(--progress);
+  background: var(--muted);
+}
+[data-status="Downloading"] :is(.rail-progress, .meter) > span { background: var(--ember); }
+[data-status="Seeding"] :is(.rail-progress, .meter) > span { background: var(--green); }
+[data-status="Error"] :is(.rail-progress, .meter) > span { background: var(--danger); }
+.progress-cell { display: grid; gap: 6px; text-align: end; font-weight: 650; font-size: 12px; }
+.rate-cell { display: grid; gap: 4px; text-align: end; white-space: nowrap; font-size: 12px; }
+.rate-cell strong { font-weight: 700; }
+.rate-cell small { color: var(--muted); font-size: 11px; }
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: 9px;
+  padding: 46px 12px;
+  color: var(--muted);
+}
+.empty h2 { color: var(--ink); font-size: 21px; }
+.empty .button { margin-top: 3px; }
+.inspector {
+  min-width: 0;
+  padding: 24px 20px 19px;
+  background: var(--rail);
+  border-left: 1px solid var(--line);
+}
+.inspect-top { display: grid; gap: 14px; margin-bottom: 20px; }
+.inspect-name { display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: center; gap: 11px; }
+.inspect-name .file-tile { width: 46px; height: 46px; border-radius: var(--radius-md); }
+.inspect-name h2 { font-size: 22px; letter-spacing: -.044em; overflow-wrap: anywhere; }
+.inspect-name .status { font-size: 11px; margin-top: 4px; }
+.tabs { display: flex; align-items: stretch; gap: 15px; border-bottom: 1px solid var(--line); }
+.tabs button {
+  position: relative;
+  padding: 0 0 9px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.inspect-panel {
+  display: grid;
+  gap: 19px;
+  margin-top: 16px;
+}
+.panel-heading { font-size: 13px; font-weight: 700; }
+.progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 4px 0 10px; }
+.progress-head b { font: 650 39px/1 var(--heading); letter-spacing: -.06em; }
+.progress-head span { text-align: end; color: var(--muted); font-size: 11px; }
+.metric-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-block: 1px solid var(--line);
+}
+.metric-breakdown > div { padding: 10px 0; min-width: 0; }
+.metric-breakdown > div + div { padding-left: 14px; border-left: 1px solid var(--line); }
+.metric-breakdown dt { color: var(--muted); font-size: 11px; margin-bottom: 3px; }
+.metric-breakdown dd { font-weight: 700; white-space: nowrap; font-size: 14px; }
+.activity { display: grid; gap: 7px; }
+.activity .activity-head { display: flex; justify-content: space-between; align-items: baseline; gap: 7px; }
+.activity .quiet, .activity figcaption { font-size: 11px; }
+.activity figure { margin: 0; }
+.activity canvas { width: 100%; height: 56px; display: block; color: var(--ember); border-top: 0 solid var(--line); }
+.activity figcaption { display: flex; justify-content: space-between; margin-top: 3px; color: var(--muted); }
+.details { display: grid; gap: 9px; }
+.details div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px; }
+.details dt { flex: none; color: var(--muted); }
+.details dd { text-align: end; overflow-wrap: anywhere; }
+.details .path { display: grid; justify-content: stretch; gap: 5px; }
+.path dd {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  border: 1px solid var(--line);
+  text-align: start;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.notice {
+  border-inline-start: 2px solid var(--danger);
+  padding: 7px 9px;
+  background: var(--hover);
+  color: var(--danger);
+  font-size: 12px;
+}
+.inspect-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.inspect-actions .button:first-child { min-width: 76px; }
+.inspect-actions .quiet-button { padding-inline: 7px; }
+.inspect-empty { display: grid; gap: 6px; }
+.inspect-empty h2 { font-size: 20px; }
+.inspect-empty p { color: var(--muted); font-size: 12px; }
+.inspector .data-list { display: grid; }
+.data-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 12px; }
+.data-list > div > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+.data-list small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 9px 15px;
+  min-height: 38px;
+  padding: 7px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--chrome);
+  font-size: 11px;
+  color: var(--muted);
+}
+.footer-rates { display: flex; flex-wrap: wrap; gap: 9px 17px; }
+.footer-rates b { color: var(--ink); font-weight: 700; }
+.footer-rates .down { color: var(--ember); }
+.footer-rates .up { color: var(--green); }
+dialog {
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(100dvh - 30px);
+  padding: 0;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 22px 72px #0006;
+}
+dialog::backdrop { background: #17120ed0; opacity: .63; }
+.dialog-inner { padding: 23px; }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 17px; }
+.dialog-head h2 { font: 650 28px/1.1 var(--heading); letter-spacing: -.05em; }
+.close-button { min-width: 30px; min-height: 30px; padding: 1px; font-size: 19px; }
+.add-form { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  font-weight: 450;
+}
+.file-picker { position: relative; display: inline-flex; flex: none; cursor: pointer; }
+.file-picker input { position: absolute; inset: 0; height: 100%; opacity: 0; cursor: inherit; }
+.file-picker:hover .button { background: var(--hover); }
+.file-picker:focus-within .button { outline: 2px solid var(--accent); outline-offset: 3px; }
+.file-input > .quiet-button { justify-self: start; padding: 4px 2px; }
+fieldset { margin: 0; padding: 0; min-width: 0; border: 0; }
+fieldset legend { margin: 0 0 6px; padding: 0; font-size: 12px; font-weight: 700; }
+.radio-options { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.check-option { display: flex; align-items: center; gap: 7px; width: fit-content; font-size: 12px; }
+.check-option input, .pick-file input { flex: none; margin: 0; width: 15px; height: 15px; }
+.form-note { font-size: 11px; color: var(--muted); }
+.files-head { display: flex; justify-content: space-between; align-items: baseline; gap: 7px; margin: 0 0 6px; font-size: 12px; }
+.file-choices { max-height: 123px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.pick-file { display: flex; align-items: center; gap: 8px; min-height: 33px; padding: 5px 8px; font-size: 12px; }
+.pick-file + .pick-file { border-top: 1px solid var(--line); }
+.pick-file small { margin-inline-start: auto; color: var(--muted); flex: none; }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+#add-total { margin-inline-end: auto; }
+.dialog-text { margin: 0 0 14px; color: var(--muted); overflow-wrap: anywhere; }
+/* Sidebar, preferences, and the download review. */
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 0 26px;
+}
+.sidebar-toggle {
+  min-width: 33px;
+  min-height: 33px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--field);
+  color: var(--muted);
+}
+.sidebar-toggle:hover { color: var(--ink); background: var(--hover); }
+.sidebar-icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 15px;
+  height: 12px;
+  border: 1.3px solid currentColor;
+  border-radius: 3px;
+  background: linear-gradient(90deg, currentColor, currentColor) 4px 0 / 1px 100% no-repeat;
+}
+.settings-link { margin-top: auto; }
+.workspace[data-sidebar="collapsed"] { --sidebar-width: 65px; }
+.workspace[data-sidebar="collapsed"] .sidebar { padding-inline: 9px; }
+.workspace[data-sidebar="collapsed"] .sidebar-head { flex-direction: column; }
+.workspace[data-sidebar="collapsed"] :is(.brand-name, .nav-heading, .nav-name, .nav-count) { display: none; }
+.workspace[data-sidebar="collapsed"] .brand { margin: 0 0 4px; }
+.workspace[data-sidebar="collapsed"] .nav-item { justify-content: center; min-width: 36px; }
+.workspace[data-sidebar="collapsed"] .nav-item .symbol { font-size: 16px; }
+
+.settings { grid-column: 2 / -1; min-width: 0; padding: 30px 28px 44px; }
+.settings-inner { max-width: 1080px; margin-inline: auto; }
+.settings-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.settings h1 { font-size: clamp(32px, 3.3vw, 44px); font-weight: 650; letter-spacing: -.065em; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; align-items: start; }
+.settings-card { background: var(--rail); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 18px; min-width: 0; }
+.settings-card h2 { font-size: 21px; letter-spacing: -.045em; margin-bottom: 17px; }
+.settings-row { padding: 13px 0; border-top: 1px solid var(--line); }
+.settings-row:last-child { padding-bottom: 0; }
+.settings-title { display: block; font-size: 13px; font-weight: 700; }
+.settings-description { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.settings-row > :is(.field, .chooser) { margin-top: 7px; }
+.settings-row > .chooser { width: 100%; }
+.theme-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.theme-option { min-width: 0; position: relative; display: grid; gap: 6px; cursor: pointer; text-align: center; font-size: 12px; font-weight: 650; }
+.theme-option input { position: absolute; inset: 0; height: 100%; width: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.theme-thumbnail {
+  --theme-bg: #f8eee2;
+  --theme-rail: #e0cdbb;
+  --theme-ink: #785e4b;
+  display: grid;
+  min-height: 58px;
+  grid-template-columns: 22% minmax(0, 1fr);
+  gap: 7px;
+  background: var(--theme-bg);
+  border: 2px solid var(--outline);
+  border-radius: var(--radius-md);
+  padding: 7px;
+}
+.theme-thumbnail::before { content: ""; background: var(--theme-rail); border-radius: 5px; }
+.theme-thumbnail::after {
+  content: "";
+  border-radius: 5px;
+  background: linear-gradient(var(--theme-ink), var(--theme-ink)) 0 5px / 75% 2px no-repeat,
+    repeating-linear-gradient(transparent, transparent 7px, var(--theme-rail) 7px, var(--theme-rail) 10px);
+}
+.theme-thumbnail.dark { --theme-bg: #27211e; --theme-rail: #54433a; --theme-ink: #f5d4bb; }
+.theme-thumbnail.system { background: linear-gradient(115deg, #f8eee2 49%, #27211e 51%); }
+:root[data-accent="harbor"] .theme-thumbnail { --theme-bg: #f6faff; --theme-rail: #b3c8dd; --theme-ink: #173d70; }
+:root[data-accent="harbor"] .theme-thumbnail.dark { --theme-bg: #101b2a; --theme-rail: #405873; --theme-ink: #7cede1; }
+:root[data-accent="harbor"] .theme-thumbnail.system { background: linear-gradient(115deg, #f6faff 49%, #101b2a 51%); }
+.theme-option input:checked + .theme-thumbnail { border-color: var(--accent); }
+.theme-option input:focus-visible + .theme-thumbnail { outline: 2px solid var(--accent); outline-offset: 2px; }
+.accent-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.accent-options .check-option {
+  min-height: 32px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--field);
+}
+.accent-options .check-option:has(input:checked) { border-color: var(--accent); }
+.accent-options .check-option::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--swatch); }
+[data-swatch="ember"] { --swatch: var(--ember); }
+[data-swatch="harbor"] { --swatch: light-dark(#173d70, #7cede1); }
+[data-swatch="sage"] { --swatch: light-dark(#39654d, #a4c8a9); }
+[data-swatch="indigo"] { --swatch: light-dark(#514e89, #bab5ec); }
+:root[data-density="compact"] .transfer { min-height: 58px; padding-block: 7px; }
+
+#add-dialog { width: min(568px, calc(100vw - 24px)); }
+.drop-zone { display: grid; justify-items: center; gap: 9px; padding: 15px 12px; border: 1px dashed var(--outline); border-radius: var(--radius-lg); background: var(--field); text-align: center; }
+.drop-zone.is-dragging { border-color: var(--accent); background: var(--accent-wash); }
+.drop-zone.ready { grid-template-columns: minmax(0, 1fr) auto; align-items: center; text-align: start; justify-items: start; padding: 9px 12px; }
+.drop-zone .drop-icon { width: 33px; height: 33px; border-radius: 50%; background: var(--accent-wash); color: var(--accent); display: grid; place-items: center; font-size: 17px; }
+.drop-zone.ready .drop-icon { display: none; }
+.drop-label { display: grid; gap: 2px; min-width: 0; max-width: 100%; }
+.drop-label small { font-size: 11px; font-weight: 450; }
+.destination-fields { display: flex; align-items: stretch; gap: 7px; }
+.destination-fields input { flex: 1 1 auto; }
+.destination-fields .chooser { max-width: 40%; }
+.files-head { align-items: center; flex-wrap: wrap; }
+.file-review { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--rail); }
+.file-review .files-head { margin: 0; }
+.file-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.file-tools .button { font-size: 11px; padding: 4px 8px; }
+.file-choices { max-height: 158px; background: var(--paper); }
+.pick-file { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 5px 8px; }
+.file-name-button {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px;
+  padding: 3px 5px;
+  text-align: start;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 650;
+}
+.file-name-button:hover, .file-name-button[aria-pressed="true"] { background: var(--accent-wash); }
+.file-name-button .quiet { font-size: 10px; font-weight: 450; }
+.file-detail { display: grid; gap: 3px; padding: 7px 9px; border-radius: var(--radius-sm); background: var(--field); font-size: 11px; overflow-wrap: anywhere; }
+.file-detail strong { font-size: 12px; }
+.file-detail .saved-path { font-family: ui-monospace, monospace; }
+[data-pending] { color: var(--muted); font-size: 12px; }
+
+@media (max-width: 1180px) {
+  .workspace { --sidebar-width: 178px; --inspector-width: 283px; }
+  .sidebar { padding-inline: 9px; }
+  .library { padding-inline: 19px; }
+  .inspector { padding-inline: 16px; }
+  .transfer-grid { --columns: 35px minmax(0, 1fr) minmax(68px, .35fr) 82px; --column-gap: 8px; }
+  .file-tile { width: 33px; height: 33px; }
+  .tabs { gap: 12px; }
+}
+@media (max-width: 1000px) {
+  .workspace { grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 0; }
+  .inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+  .workspace .inspector:has([data-panel]) { display: grid; grid-template-columns: minmax(175px, .7fr) minmax(0, 1.3fr); grid-template-rows: auto 1fr; gap: 8px 25px; align-items: start; }
+  .workspace .inspect-top { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+  .workspace .inspect-body { grid-column: 2; grid-row: span 2; }
+  .workspace .inspect-actions { grid-column: 1; grid-row: 2; margin-top: 4px; }
+}
+@media (max-width: 760px) {
+  .preview { width: calc(100% - 28px); margin: 16px auto 23px; }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .workspace .sidebar { flex-direction: row; align-items: center; gap: 5px 7px; flex-wrap: wrap; padding: 9px 11px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .workspace .brand { margin: 0; }
+  .workspace .nav-group { flex: 1 0 100%; flex-direction: row; flex-wrap: wrap; gap: 2px; margin: 0; }
+  .workspace .nav-heading { display: none; }
+  .workspace .nav-item { min-height: 32px; gap: 5px; padding-inline: 7px; }
+  .library { padding: 20px 14px 16px; }
+}
+@media (max-width: 760px) {
+  .settings { grid-column: 1 / -1; padding: 22px 14px; }
+  .settings-grid { grid-template-columns: minmax(0, 1fr); }
+  .sidebar-head { flex: 1 0 100%; margin: 0; }
+  .settings-link { margin-top: 0; }
+  .workspace[data-sidebar="collapsed"] { --sidebar-width: 53px; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); }
+  .workspace[data-sidebar="collapsed"] .sidebar {
+    grid-row: 1 / 3;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
+    padding: 9px 5px;
+  }
+  .workspace[data-sidebar="collapsed"] .sidebar-head { flex: none; }
+  .workspace[data-sidebar="collapsed"] .nav-group { flex: none; flex-direction: column; }
+  .workspace[data-sidebar="collapsed"] :is(.library, .inspector, .settings) { grid-column: 2; }
+  .workspace[data-sidebar="collapsed"][data-page="settings"] .sidebar { grid-row: 1; }
+}
+@media (max-width: 550px) {
+  .preview { width: calc(100% - 16px); margin-top: 8px; }
+  .preview-label { font-size: 11px; }
+  .window { border-radius: var(--radius-md); }
+  .library-heading { margin-bottom: 13px; }
+  .toolbar { margin-bottom: 12px; }
+  .toolbar .chooser { padding-inline: 6px; }
+  .search kbd { display: none; }
+  .transfer-grid { --columns: 30px minmax(0, 1fr) 74px; }
+  .columns, .transfer { padding-inline: 5px; }
+  .columns span:nth-child(2) { display: none; }
+  .transfer { row-gap: 3px; min-height: 67px; padding-block: 8px; }
+  .transfer .file-tile { width: 29px; height: 31px; grid-row: span 2; }
+  .transfer .progress-cell { grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr) auto; align-items: center; font-size: 10px; }
+  .transfer .progress-cell .rail-progress { grid-row: 1; grid-column: 1; }
+  .transfer .rate-cell { grid-column: 3; grid-row: 1 / span 2; }
+  .transfer-name { font-size: 13px; }
+  .meta { font-size: 10.5px; }
+  .workspace .inspector:has([data-panel]) { display: block; }
+  .workspace .inspect-top { margin-bottom: 15px; }
+  .workspace .inspect-actions { margin-top: 14px; }
+  .dialog-inner { padding: 16px; }
+  .drop-zone.ready { grid-template-columns: minmax(0, 1fr); }
+  .workspace[data-sidebar="collapsed"] :is(.library, .inspector) { padding-inline: 10px; }
+  .workspace[data-sidebar="collapsed"] .library h1 { font-size: 27px; }
+}
+@media (pointer: coarse) {
+  :is(.button, .nav-item, .tabs button, .segments button, select, .search, .check-option, .pick-file, .sidebar-toggle) { min-height: 44px; }
+  .titlebar { height: 46px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduced"]) :is(.library, .settings, .inspector):not([hidden]) {
+    animation: reveal 320ms ease-out both;
+  }
+  :root:not([data-motion="reduced"]) dialog[open] {
+    animation: dialog-in 320ms ease-out both;
+  }
+  :root:not([data-motion="reduced"]) dialog[open]::backdrop {
+    animation: fade-in 180ms ease-out both;
+  }
+  :root:not([data-motion="reduced"]) :is(.button, .nav-item, .check-option) {
+    transition: background-color 120ms, border-color 120ms, transform 120ms;
+  }
+  :root:not([data-motion="reduced"]) .button:not(:disabled):active {
+    transform: translateY(1px);
+  }
+  :root:not([data-motion="reduced"]) [data-pending]:not([hidden])::before {
+    animation: pending 1.25s ease-in-out infinite;
+  }
+}
+[data-pending]:not([hidden])::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+@keyframes reveal { from { opacity: .38; } }
+@keyframes dialog-in { from { opacity: .38; transform: translateY(18px); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes pending { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+
+</style>
+</head>
+<body>
+<div class="preview">
+  <p class="preview-label">Desktop preview</p>
+
+  <div class="window">
+    <div class="titlebar">
+      <span class="lights" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span>Fero</span>
+      <button class="nav-item about-button" type="button" data-action="about"><span class="symbol" aria-hidden="true">ⓘ</span>About Fero</button>
+    </div>
+    <div class="workspace" data-page="library" data-sidebar="expanded">
+      <aside class="sidebar" aria-label="Sidebar">
+        <div class="sidebar-head">
+          <div class="brand"><img class="mark" src="brand/svg/magnet/colors/fero-magnet-harbor-current.svg" alt=""><span class="brand-name">Fero</span></div>
+          <button class="sidebar-toggle" type="button" data-action="focus" aria-pressed="false" aria-label="Collapse sidebar for Focus mode" title="Collapse sidebar for Focus mode">
+            <span class="sidebar-icon" aria-hidden="true"></span>
+          </button>
+        </div>
+        <nav class="nav-group" aria-label="Transfer status" id="state-filters"><p class="nav-heading">Status</p></nav>
+        <nav class="nav-group" aria-label="Categories" id="category-filters"><p class="nav-heading">Categories</p></nav>
+        <button class="nav-item settings-link" type="button" data-action="settings" aria-label="Settings" title="Settings">
+          <span class="symbol" aria-hidden="true">⚙</span><span class="nav-name">Settings</span>
+        </button>
+      </aside>
+
+      <main class="library" id="library">
+        <div class="library-heading">
+          <h1 id="library-title" tabindex="-1">Transfers</h1>
+          <button type="button" class="button primary" data-action="open"><span class="icon-text" aria-hidden="true">+</span>Add Torrent</button>
+        </div>
+        <div class="toolbar">
+          <label class="search">
+            <span class="magnifier" aria-hidden="true"></span>
+            <input id="search" type="search" placeholder="Search transfers…" aria-label="Search transfers">
+            <kbd aria-hidden="true" id="search-shortcut">⌘ F</kbd>
+          </label>
+          <select id="sort" class="chooser" aria-label="Sort transfers">
+            <option value="recent">Recently added</option>
+            <option value="name">Name</option>
+            <option value="progress">Progress</option>
+            <option value="rate">Transfer rate</option>
+          </select>
+        </div>
+        <div class="transfer-grid">
+          <div class="columns" aria-hidden="true"><span>Name</span><span>Progress</span><span>Rate / ETA</span></div>
+          <div class="rows" id="rows" role="region" aria-label="Transfers"></div>
+        </div>
+      </main>
+
+      <aside class="inspector" id="inspector" aria-label="Transfer details"></aside>
+
+      <main class="settings" id="settings" hidden>
+        <div class="settings-inner">
+          <header class="settings-heading">
+            <h1 id="settings-title" tabindex="-1">Settings</h1>
+            <button class="button" type="button" data-action="library"><span aria-hidden="true">←</span>Back to Library</button>
+          </header>
+          <form id="preferences" class="settings-grid">
+            <section class="settings-card" aria-labelledby="appearance-title">
+              <h2 id="appearance-title">Appearance</h2>
+              <fieldset class="theme-options" aria-label="Theme">
+                <label class="theme-option"><input type="radio" name="theme" value="system"><span class="theme-thumbnail system" aria-hidden="true"></span>System</label>
+                <label class="theme-option"><input type="radio" name="theme" value="light"><span class="theme-thumbnail" aria-hidden="true"></span>Light</label>
+                <label class="theme-option"><input type="radio" name="theme" value="dark"><span class="theme-thumbnail dark" aria-hidden="true"></span>Dark</label>
+              </fieldset>
+              <fieldset class="settings-row">
+                <legend class="settings-title">Color palette</legend>
+                <div class="accent-options">
+                  <label class="check-option" data-swatch="harbor"><input type="radio" name="accent" value="harbor">Harbor Current</label>
+                  <label class="check-option" data-swatch="ember"><input type="radio" name="accent" value="ember">Ember</label>
+                  <label class="check-option" data-swatch="sage"><input type="radio" name="accent" value="sage">Sage</label>
+                  <label class="check-option" data-swatch="indigo"><input type="radio" name="accent" value="indigo">Indigo</label>
+                </div>
+              </fieldset>
+              <label class="settings-row field">
+                <span class="settings-title">Transfer row spacing</span>
+                <select class="chooser" name="density"><option value="roomy">Roomy</option><option value="compact">Compact</option></select>
+              </label>
+              <div class="settings-row">
+                <label class="check-option"><input type="checkbox" name="reduceMotion"><span>Reduce motion</span></label>
+              </div>
+              <div class="settings-row">
+                <label class="check-option"><input type="checkbox" name="collapsed"><span>Collapse sidebar in Focus mode</span></label>
+              </div>
+            </section>
+
+            <section class="settings-card" aria-labelledby="downloads-title">
+              <h2 id="downloads-title">Downloads</h2>
+              <label class="field settings-row">
+                <span class="settings-title">Default save folder</span>
+                <input name="folder" spellcheck="false" autocomplete="off" placeholder="~/Downloads">
+                <span class="settings-description">Used for new transfers. You can change it when adding a torrent.</span>
+              </label>
+              <label class="settings-row field">
+                <span class="settings-title">When adding a magnet</span>
+                <select class="chooser" name="magnet">
+                  <option value="choose">Review files before adding</option>
+                  <option value="now">Start immediately</option>
+                </select>
+              </label>
+              <div class="settings-row">
+                <label class="check-option"><input type="checkbox" name="paused"><span>Start new transfers paused</span></label>
+              </div>
+            </section>
+          </form>
+        </div>
+      </main>
+    </div>
+    <footer class="statusbar num" id="statusbar">
+      <span id="total" role="status"></span>
+      <div class="footer-rates" aria-label="Total transfer rates">
+        <span><span class="down" aria-hidden="true">↓</span> Download <b id="total-download"></b></span>
+        <span><span class="up" aria-hidden="true">↑</span> Upload <b id="total-upload"></b></span>
+      </div>
+    </footer>
+  </div>
+</div>
+
+<dialog id="add-dialog" aria-labelledby="add-title">
+  <div class="dialog-inner">
+    <header class="dialog-head">
+      <h2 id="add-title">Add Torrent</h2>
+      <button type="button" class="button quiet-button close-button" data-action="cancel-add" aria-label="Close Add Torrent">×</button>
+    </header>
+    <form class="add-form" id="add-form" novalidate>
+      <div class="segments" role="group" aria-label="Torrent source">
+        <button type="button" data-source="magnet" aria-pressed="true">Magnet link</button>
+        <button type="button" data-source="file" aria-pressed="false">Torrent file</button>
+      </div>
+
+      <label class="field" data-field="magnet">Magnet link
+        <input name="magnet" placeholder="magnet:?xt=…" autocomplete="off" spellcheck="false" autofocus>
+        <span class="form-note">You can also drop a .torrent file into this window.</span>
+      </label>
+      <div class="field file-input" data-field="file" hidden>
+        <div class="drop-zone" id="drop-zone">
+          <span class="drop-icon" aria-hidden="true">↓</span>
+          <div class="drop-label">
+            <strong class="truncate" id="chosen-file">Drop a .torrent file here</strong>
+            <small class="quiet" id="drop-detail">The file list opens for review.</small>
+          </div>
+          <label class="file-picker">
+            <input name="torrent" type="file" accept=".torrent" aria-label="Choose torrent file">
+            <span class="button" id="choose-label" aria-hidden="true">Browse files…</span>
+          </label>
+        </div>
+        <button type="button" class="button quiet-button" data-action="sample-file">Use sample torrent</button>
+      </div>
+      <fieldset id="magnet-options">
+        <legend>When to start</legend>
+        <div class="radio-options">
+          <label class="check-option"><input type="radio" name="timing" value="choose" checked>Review files first</label>
+          <label class="check-option"><input type="radio" name="timing" value="now">Start immediately</label>
+        </div>
+      </fieldset>
+      <p role="status" data-pending hidden></p>
+      <div id="file-options" hidden></div>
+      <div class="field">
+        <label for="destination">Save to</label>
+        <div class="destination-fields">
+          <input id="destination" name="destination" autocomplete="off" spellcheck="false" value="~/Downloads">
+          <select id="destination-presets" class="chooser" aria-label="Choose download folder">
+            <option value="">Choose folder…</option>
+            <option value="default">Default folder</option>
+            <option value="~/Downloads">Downloads</option>
+            <option value="~/Desktop">Desktop</option>
+            <option value="~/Movies">Movies</option>
+          </select>
+        </div>
+      </div>
+      <label class="check-option"><input name="paused" type="checkbox">Start paused</label>
+      <p class="notice" id="add-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <span class="form-note num" id="add-total" role="status" hidden></span>
+        <button type="button" class="button quiet-button" data-action="cancel-add">Cancel</button>
+        <button type="submit" class="button primary" id="add-submit">Add Torrent</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="delete-dialog" aria-labelledby="delete-title">
+  <div class="dialog-inner">
+    <header class="dialog-head"><h2 id="delete-title">Delete downloaded files?</h2></header>
+    <p class="dialog-text" id="delete-message"></p>
+    <form method="dialog" class="dialog-actions">
+      <button class="button" value="cancel" autofocus>Cancel</button>
+      <button class="button danger-button" value="delete">Delete Files</button>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="about-dialog" aria-labelledby="about-title">
+  <div class="dialog-inner">
+    <header class="dialog-head"><h2 id="about-title">About Fero</h2></header>
+    <p class="dialog-text">Fero (FEH-roh) takes its name from the Latin <i>fero</i>, “to carry, bring, bear.”</p>
+    <form method="dialog" class="dialog-actions"><button class="button" autofocus>Done</button></form>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const demoFiles = [
+    { name: 'Sintel / Sintel-4K.mp4', size: 1376 },
+    { name: 'Sintel / Extras / Making of Sintel.mp4', size: 264 },
+    { name: 'Sintel / Subtitles / English.srt', size: 0.08 }
+  ];
+  const transfers = [
+    {
+      id: 7, name: 'Fedora Workstation', file: 'Fedora-Workstation-Live-x86_64.iso',
+      kind: 'image', type: 'ISO', category: 'Linux', size: 2870, progress: 68,
+      status: 'Downloading', down: 8.4, up: .32, peers: 14, source: 'Magnet link',
+      history: [2, 2.7, 2.5, 3.9, 3.4, 5.2, 4.7, 6.6, 6.5, 5.9, 7.6, 7.1, 8.7, 7.8, 9.4, 8.4]
+    }, {
+      id: 6, name: 'Big Buck Bunny', file: 'Big Buck Bunny (1080p).mp4',
+      kind: 'video', type: 'MP4', category: 'Video', size: 856, progress: 100,
+      status: 'Seeding', down: 0, up: 1.2, peers: 3, source: 'Torrent file'
+    }, {
+      id: 5, name: 'Debian 13 netinst', file: 'debian-13-amd64-netinst.iso',
+      kind: 'image', type: 'ISO', category: 'Linux', size: 774, progress: 21,
+      status: 'Paused', previous: 'Waiting for peers', down: 0, up: 0, peers: 0, source: 'Magnet link'
+    }, {
+      id: 4, name: 'Sintel · 4K and bonus features', file: 'Sintel-4K.mp4',
+      kind: 'video', type: 'MP4', category: 'Video', size: 1640, progress: 42,
+      status: 'Downloading', down: 2.6, up: .08, peers: 6, source: 'Torrent file',
+      files: demoFiles,
+      history: [.8, 1, .9, 1.3, 1.1, 1.6, 1.6, 1.4, 1.9, 2.1, 1.7, 2.5, 2.3, 2.7, 2.4, 2.6]
+    }, {
+      id: 3, name: 'Blender Open Movies Collection', file: 'Blender-Open-Movies.zip',
+      kind: 'archive', type: 'ZIP', category: 'Video', size: 6370, progress: 0,
+      status: 'Waiting for peers', down: 0, up: 0, peers: 0, source: 'Torrent file'
+    }, {
+      id: 2, name: 'Open audio field recordings', file: 'Open audio field recordings',
+      kind: 'audio', type: 'FLAC', category: 'Audio', size: 0, progress: 0,
+      status: 'Fetching metadata', down: 0, up: 0, peers: 0, source: 'Magnet link'
+    }, {
+      id: 1, name: 'Project Gutenberg · Offline collection', file: 'Gutenberg-Offline-Collection.zip',
+      kind: 'archive', type: 'ZIP', category: 'Archives', size: 4620, progress: 54,
+      status: 'Error', down: 0, up: 0, peers: 0, source: 'Torrent file', destination: '~/Downloads/Archive',
+      error: 'The destination is out of space. Free up disk space, then resume.'
+    }
+  ];
+  const states = [
+    ['All transfers', '▤'], ['Downloading', '↓'], ['Seeding', '↑'], ['Paused', 'Ⅱ'],
+    ['Waiting for peers', '◷'], ['Fetching metadata', '◇'], ['Error', '!']
+  ];
+  const categories = [['Linux', '◉'], ['Video', '▷'], ['Audio', '♫'], ['Archives', '▧']];
+  const tabs = ['Overview', 'Files', 'Peers', 'Trackers'];
+  const byId = id => document.getElementById(id);
+  const workspace = document.querySelector('.workspace');
+  const search = byId('search');
+  const rows = byId('rows');
+  const inspector = byId('inspector');
+  const sort = byId('sort');
+  const preferenceFields = byId('preferences');
+  const sidebarToggle = document.querySelector('[data-action="focus"]');
+  const dialog = byId('add-dialog');
+  const deleteDialog = byId('delete-dialog');
+  const form = byId('add-form');
+  const err = byId('add-error');
+  const fileOptions = byId('file-options');
+  const submit = byId('add-submit');
+  const dropZone = byId('drop-zone');
+  const pendingMessage = document.querySelector('[data-pending]');
+  const input = name => form.elements[name];
+  const isMac = /Mac|iPad/.test(navigator.platform);
+  const defaults = { theme: 'system', accent: 'harbor', density: 'roomy', reduceMotion: false, collapsed: false, folder: '~/Downloads', magnet: 'choose', paused: false };
+  const preferences = { ...defaults };
+  const preferenceKey = 'fero-preview-preferences-v1';
+  try {
+    const saved = JSON.parse(localStorage.getItem(preferenceKey));
+    for (const [key, value] of Object.entries(defaults)) {
+      if (typeof saved?.[key] === typeof value) preferences[key] = saved[key];
+    }
+  } catch { /* Some browser profiles disable storage for local files. */ }
+  let nextId = 8;
+  let filter = 'All transfers';
+  let selected = 7;
+  let tab = 'Overview';
+  let source = 'magnet';
+  let review = null;
+  let reviewedFile = 0;
+  let previewRequest = 0;
+  let pending = false;
+  let fileLimit = 80;
+  let deleteId;
+
+  const escaping = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  const escape = value => String(value).replace(/[&<>"']/g, char => escaping[char]);
+  const active = transfer => transfer.status === 'Downloading' || transfer.status === 'Seeding';
+  const speed = transfer => active(transfer) ? transfer.down + transfer.up : 0;
+  const size = mib => mib >= 1024 ? `${(mib / 1024).toFixed(1)} GiB`
+    : mib >= 1 ? `${mib.toFixed(0)} MiB` : mib >= 1 / 1024 ? `${Math.round(mib * 1024)} KiB` : `${Math.round(mib * 1024 ** 2)} B`;
+  const rate = mib => mib >= 1 ? `${mib.toFixed(1)} MiB/s`
+    : mib > 0 ? `${Math.round(mib * 1024)} KiB/s` : '0 B/s';
+  const eta = transfer => {
+    if (transfer.status !== 'Downloading' || !transfer.down || !transfer.size) return '—';
+    const seconds = Math.ceil(transfer.size * (1 - transfer.progress / 100) / transfer.down);
+    if (seconds >= 3600) return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds / 60) % 60}m`;
+    return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
+  };
+  const matches = (transfer, label) => label === 'All transfers' || transfer.status === label || transfer.category === label;
+  const tile = transfer => `<span class="file-tile" data-kind="${transfer.kind}" aria-hidden="true">${transfer.type}</span>`;
+  const destination = transfer => transfer.destination || '~/Downloads';
+  const progress = (value, className) => `<span class="${className}" role="progressbar" aria-label="Download progress" aria-valuenow="${value}" aria-valuemin="0" aria-valuemax="100"><span style="--progress:${value}%"></span></span>`;
+
+  function addFilters(id, filters) {
+    byId(id).insertAdjacentHTML('beforeend', filters.map(([label, icon]) => `
+      <button type="button" class="nav-item" data-filter="${label}" aria-pressed="false">
+        <span class="symbol" aria-hidden="true">${icon}</span>
+        <span class="nav-name">${label}</span>
+        <span class="nav-count num"></span>
+      </button>`).join(''));
+  }
+
+  function currentRows() {
+    const query = search.value.trim().toLowerCase();
+    const comparators = {
+      recent: (a, b) => b.id - a.id,
+      name: (a, b) => a.name.localeCompare(b.name),
+      progress: (a, b) => b.progress - a.progress,
+      rate: (a, b) => speed(b) - speed(a)
+    };
+    return transfers.filter(transfer => matches(transfer, filter) &&
+      (!query || [transfer.name, transfer.file, transfer.category].some(value => value.toLowerCase().includes(query))))
+      .sort(comparators[sort.value]);
+  }
+
+  function drawRows(visible) {
+    if (!visible.length) {
+      rows.innerHTML = transfers.length
+        ? `<div class="empty"><h2>No matching transfers</h2><p>Try another search or status filter.</p><button type="button" class="button" data-action="reset-filter">Clear filters</button></div>`
+        : `<div class="empty"><h2>No transfers yet</h2><p>Add a magnet link or torrent file to begin.</p><button type="button" class="button" data-action="open">Add Torrent</button></div>`;
+      return;
+    }
+    if (!visible.some(transfer => transfer.id === selected)) selected = visible[0].id;
+    rows.innerHTML = visible.map(transfer => {
+      const hasRate = active(transfer) && speed(transfer);
+      const seeding = transfer.status === 'Seeding';
+      return `<button class="transfer" type="button" data-row="${transfer.id}" aria-pressed="${transfer.id === selected}" data-status="${transfer.status}">
+        ${tile(transfer)}
+        <span>
+          <strong class="transfer-name" title="${escape(transfer.name)}">${escape(transfer.name)}</strong>
+          <span class="meta"><span class="status">${transfer.status}</span>${transfer.size ? `<span class="sep" aria-hidden="true"></span><span>${size(transfer.size)}</span>` : ''}</span>
+        </span>
+        <span class="progress-cell num"><span>${transfer.progress}%</span>${progress(transfer.progress, 'rail-progress')}</span>
+        <span class="rate-cell num">
+          <strong>${hasRate ? `${seeding ? '↑' : '↓'} ${rate(seeding ? transfer.up : transfer.down)}` : '—'}</strong>
+          ${transfer.status === 'Downloading' ? `<small>${eta(transfer)} left</small>` : ''}
+        </span>
+      </button>`;
+    }).join('');
+  }
+
+  function overview(transfer) {
+    return `<div>
+        <div class="panel-heading">Downloaded</div>
+        <div class="progress-head num"><b>${transfer.progress}%</b><span>${transfer.size ? `${size(transfer.size * transfer.progress / 100)} of ${size(transfer.size)}` : 'Size pending'}</span></div>
+        ${progress(transfer.progress, 'meter')}
+      </div>
+      <dl class="metric-breakdown num">
+        <div><dt>Download</dt><dd>${rate(active(transfer) ? transfer.down : 0)}</dd></div>
+        <div><dt>Upload</dt><dd>${rate(active(transfer) ? transfer.up : 0)}</dd></div>
+      </dl>
+      ${transfer.status === 'Downloading' && transfer.history ? `<div class="activity">
+        <div class="activity-head"><span class="panel-heading">Download activity</span><span class="quiet">Last minute</span></div>
+        <figure><canvas role="img" aria-label="Download rate over the previous minute, ending at ${rate(transfer.down)}"></canvas><figcaption><span>60s ago</span><span>Now</span></figcaption></figure>
+      </div>` : ''}
+      ${transfer.status === 'Error' && transfer.error ? `<p class="notice">${escape(transfer.error)}</p>` : ''}
+      <dl class="details num">
+        <div><dt>Time left</dt><dd>${eta(transfer)}</dd></div>
+        <div><dt>Connected peers</dt><dd>${active(transfer) ? transfer.peers : 0}</dd></div>
+        <div><dt>Source</dt><dd>${transfer.source}</dd></div>
+        <div class="path"><dt>Save to</dt><dd>${escape(destination(transfer))}</dd></div>
+      </dl>`;
+  }
+
+  function panelContents(transfer) {
+    if (tab === 'Overview') return overview(transfer);
+    if (tab === 'Files') {
+      if (!transfer.files && !transfer.size) return '<p class="quiet">Files appear when torrent metadata is available.</p>';
+      const files = transfer.files || [{ name: transfer.file, size: transfer.size }];
+      return `<div class="data-list">${files.map(file =>
+        `<div><span>${escape(file.name)}${file.skipped ? '<small>Skipped</small>' : ''}</span><span class="num">${size(file.size)}</span></div>`).join('')}</div>`;
+    }
+    if (tab === 'Peers') {
+      if (!active(transfer) || !transfer.peers) return '<p class="quiet">No peers connected.</p>';
+      const peers = [['192.0.2.31', 'TCP', .48], ['198.51.100.18', 'µTP', .32], ['203.0.113.64', 'TCP', .2]];
+      return `<div class="panel-heading">${transfer.peers} connected peers</div><div class="data-list" aria-label="Sample connected peers">
+        ${peers.map(([address, protocol, share]) => `<div><span>${address}<small>${protocol}</small></span><span class="num">${rate((transfer.down || transfer.up) * share)}</span></div>`).join('')}
+      </div>`;
+    }
+    const trackerState = transfer.status === 'Paused' ? 'Paused'
+      : active(transfer) ? 'Announced' : 'Waiting to announce';
+    return `<div class="data-list"><div><span>tracker.example.org<small>UDP tracker</small></span><span>${trackerState}</span></div>
+      <div><span>Distributed hash table<small>Peer discovery</small></span><span>${transfer.status === 'Paused' ? 'Paused' : 'Enabled'}</span></div></div>`;
+  }
+
+  const chartSize = new ResizeObserver(drawActivity);
+  function drawActivity() {
+    const canvas = inspector.querySelector('canvas');
+    const transfer = transfers.find(item => item.id === selected);
+    if (!canvas || !transfer?.history) return;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return;
+    const dpr = devicePixelRatio || 1;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.scale(dpr, dpr);
+    const ink = getComputedStyle(canvas).color;
+    context.strokeStyle = getComputedStyle(canvas).borderTopColor;
+    context.lineWidth = 1;
+    for (const y of [height * .28, height * .63, height - 1]) {
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(width, y);
+      context.stroke();
+    }
+    const max = Math.max(...transfer.history) * 1.16;
+    const points = transfer.history.map((value, index, values) => [
+      1 + index * (width - 2) / (values.length - 1), height - 2 - value / max * (height - 3)
+    ]);
+    context.beginPath();
+    context.moveTo(0, height);
+    points.forEach(([x, y]) => context.lineTo(x, y));
+    context.lineTo(width, height);
+    context.closePath();
+    const fill = context.createLinearGradient(0, 0, 0, height);
+    fill.addColorStop(0, ink);
+    fill.addColorStop(1, 'transparent');
+    context.globalAlpha = .26;
+    context.fillStyle = fill;
+    context.fill();
+    context.globalAlpha = 1;
+    context.beginPath();
+    points.forEach(([x, y], index) => index ? context.lineTo(x, y) : context.moveTo(x, y));
+    context.strokeStyle = ink;
+    context.lineWidth = 1.6;
+    context.lineJoin = 'round';
+    context.stroke();
+    const [endX, endY] = points.at(-1);
+    context.beginPath();
+    context.arc(endX - 1, endY, 2, 0, Math.PI * 2);
+    context.fillStyle = ink;
+    context.fill();
+  }
+
+  function drawInspector(transfer) {
+    chartSize.disconnect();
+    if (!transfer) {
+      inspector.removeAttribute('data-status');
+      inspector.innerHTML = '<div class="inspect-empty"><h2>Overview</h2><p>Select a transfer to see its progress and controls.</p></div>';
+      return;
+    }
+    inspector.dataset.status = transfer.status;
+    const canResume = transfer.status === 'Paused' || transfer.status === 'Error';
+    inspector.innerHTML = `<div class="inspect-top">
+      <div class="inspect-name">${tile(transfer)}<div><h2>${escape(transfer.name)}</h2><p class="status">${transfer.status}</p></div></div>
+    </div>
+    <div class="inspect-body">
+      <nav class="tabs" aria-label="Transfer detail views">${tabs.map(label => `<button type="button" data-tab="${label}" aria-pressed="${tab === label}">${label}</button>`).join('')}</nav>
+      <div class="inspect-panel" data-panel="${tab}">${panelContents(transfer)}</div>
+    </div>
+    <div class="inspect-actions">
+      <button type="button" class="button" data-action="pause"><span aria-hidden="true">${canResume ? '▸' : 'Ⅱ'}</span>${canResume ? 'Resume' : 'Pause'}</button>
+      <button type="button" class="button quiet-button" data-action="remove">Remove from Fero</button>
+      ${transfer.size ? '<button type="button" class="button quiet-button danger-button" data-action="delete">Delete Files…</button>' : ''}
+    </div>`;
+    const canvas = inspector.querySelector('canvas');
+    if (canvas) {
+      chartSize.observe(canvas);
+      drawActivity();
+    }
+  }
+
+  function render() {
+    const visible = currentRows();
+    if (visible.length && !visible.some(transfer => transfer.id === selected)) tab = 'Overview';
+    drawRows(visible);
+    drawInspector(visible.find(transfer => transfer.id === selected));
+    for (const button of document.querySelectorAll('[data-filter]')) {
+      const label = button.dataset.filter;
+      const count = transfers.filter(transfer => matches(transfer, label)).length;
+      button.setAttribute('aria-pressed', workspace.dataset.page === 'library' && label === filter);
+      button.setAttribute('aria-label', `${label}, ${count}`);
+      button.title = label;
+      button.querySelector('.nav-count').textContent = count;
+    }
+    byId('total').textContent = visible.length === transfers.length
+      ? `${visible.length} ${visible.length === 1 ? 'transfer' : 'transfers'}`
+      : `${visible.length} of ${transfers.length} transfers`;
+    byId('total-download').textContent = rate(transfers.reduce((sum, transfer) => sum + (active(transfer) ? transfer.down : 0), 0));
+    byId('total-upload').textContent = rate(transfers.reduce((sum, transfer) => sum + (active(transfer) ? transfer.up : 0), 0));
+  }
+
+  function setError(message = '', field) {
+    err.textContent = message;
+    err.hidden = !message;
+    form.querySelectorAll('[aria-invalid="true"]').forEach(element => element.removeAttribute('aria-invalid'));
+    if (field) {
+      field.setAttribute('aria-invalid', 'true');
+      field.focus();
+    }
+  }
+
+  function applyPreferences(save = false) {
+    for (const name of ['theme', 'accent', 'density']) {
+      document.documentElement.dataset[name] = preferences[name];
+    }
+    document.documentElement.dataset.motion = preferences.reduceMotion ? 'reduced' : 'auto';
+    workspace.dataset.sidebar = preferences.collapsed ? 'collapsed' : 'expanded';
+    sidebarToggle.setAttribute('aria-pressed', preferences.collapsed);
+    const toggleLabel = preferences.collapsed ? 'Expand sidebar' : 'Collapse sidebar for Focus mode';
+    sidebarToggle.setAttribute('aria-label', toggleLabel);
+    sidebarToggle.title = toggleLabel;
+    for (const field of preferenceFields.elements) {
+      if (!(field.name in preferences)) continue;
+      if (field.type === 'radio') field.checked = preferences[field.name] === field.value;
+      else if (field.type === 'checkbox') field.checked = preferences[field.name];
+      else field.value = preferences[field.name];
+    }
+    if (save) {
+      try { localStorage.setItem(preferenceKey, JSON.stringify(preferences)); } catch {}
+    }
+    drawActivity();
+  }
+
+  function showPage(page, moveFocus = false) {
+    const settings = page === 'settings';
+    workspace.dataset.page = page;
+    byId('settings').hidden = !settings;
+    byId('library').hidden = inspector.hidden = byId('statusbar').hidden = settings;
+    const settingsLink = document.querySelector('[data-action="settings"]');
+    if (settings) settingsLink.setAttribute('aria-current', 'page');
+    else settingsLink.removeAttribute('aria-current');
+    render();
+    if (moveFocus) byId(settings ? 'settings-title' : 'library-title').focus();
+  }
+
+  function clearReview() {
+    ++previewRequest;
+    pending = false;
+    review = null;
+    reviewedFile = 0;
+    fileLimit = 80;
+    pendingMessage.hidden = true;
+    pendingMessage.textContent = '';
+    fileOptions.replaceChildren();
+    fileOptions.hidden = true;
+  }
+
+  function startReview(message) {
+    clearReview();
+    pending = true;
+    pendingMessage.textContent = message;
+    pendingMessage.hidden = false;
+    updateAdd();
+    return previewRequest;
+  }
+
+  const fileParts = path => {
+    const slash = path.lastIndexOf('/');
+    return [path.slice(slash + 1), slash < 0 ? '' : path.slice(0, slash)];
+  };
+  const savePath = () => input('destination').value.trim();
+
+  function drawFileDetail() {
+    if (!review) return;
+    const file = review.files[reviewedFile];
+    const [name, folder] = fileParts(file.name);
+    const relative = folder ? folder + '/' + name : name;
+    const path = savePath();
+    const separator = path.includes('\\') || /^[a-z]:/i.test(path) ? '\\' : '/';
+    const root = path.replace(/[/\\]+$/, '');
+    const fullPath = path ? root + separator + relative.replaceAll('/', separator) : relative;
+    byId('file-detail').innerHTML = `
+      <strong>${escape(name)}</strong>
+      <span class="quiet">${size(file.size)} · ${file.skipped ? 'Skipped' : 'Selected'}${folder ? ' · ' + escape(folder) : ''}</span>
+      <span class="saved-path">${escape(fullPath)}</span>`;
+    for (const button of fileOptions.querySelectorAll('[data-file-preview]')) {
+      button.setAttribute('aria-pressed', Number(button.dataset.filePreview) === reviewedFile);
+    }
+  }
+
+  function fileSummary() {
+    const files = review.files;
+    const picked = files.filter(file => !file.skipped);
+    const pickedSize = size(picked.reduce((sum, file) => sum + file.size, 0));
+    byId('file-summary').textContent = `${picked.length} of ${files.length} selected`;
+    byId('add-total').textContent = `${pickedSize} to download`;
+    for (const checkbox of fileOptions.querySelectorAll('[data-select-file]')) {
+      checkbox.checked = !files[Number(checkbox.dataset.selectFile)].skipped;
+    }
+    drawFileDetail();
+  }
+
+  function drawFileList() {
+    const query = (byId('file-search')?.value || '').trim().toLowerCase();
+    const matching = review.files.map((file, index) => ({file, index})).filter(({file}) => file.name.toLowerCase().includes(query));
+    byId('file-list').innerHTML = matching.slice(0, fileLimit).map(({file, index}) => {
+      const [name, folder] = fileParts(file.name);
+      return `<div class="pick-file">
+        <input type="checkbox" data-select-file="${index}" aria-label="Download ${escape(file.name)}"${file.skipped ? '' : ' checked'}>
+        <button type="button" class="file-name-button" data-file-preview="${index}" aria-pressed="${reviewedFile === index}" title="${escape(file.name)}">
+          <span class="truncate">${escape(name)}</span>
+          ${folder ? `<span class="quiet truncate">${escape(folder)}</span>` : ''}
+        </button>
+        <small class="num">${size(file.size)}</small>
+      </div>`;
+    }).join('') || '<p class="form-note" style="padding: 8px">No matching files.</p>';
+    byId('more-files').hidden = matching.length <= fileLimit;
+  }
+
+  function showReview() {
+    fileOptions.hidden = false;
+    fileOptions.innerHTML = `<section class="file-review" aria-label="Review torrent files">
+      <div class="files-head"><b>Files to download</b><span class="quiet num" id="file-summary"></span></div>
+      <div class="file-tools">
+        <button type="button" class="button quiet-button" data-action="select-files">Select all</button>
+        <button type="button" class="button quiet-button" data-action="clear-files">Clear selection</button>
+      </div>
+      ${review.files.length > 12 ? '<label class="field"><input type="search" id="file-search" placeholder="Find a file…" aria-label="Find a file"></label>' : ''}
+      <div class="file-choices" id="file-list"></div>
+      <button type="button" class="button quiet-button" id="more-files" data-action="more-files" hidden>Show more files</button>
+      <div class="file-detail" id="file-detail" aria-label="File preview"></div>
+      ${review.example && source === 'magnet' ? '<p class="form-note">This magnet preview uses a sample file list.</p>' : ''}
+    </section>`;
+    drawFileList();
+    fileSummary();
+    updateAdd();
+  }
+
+  // Read metainfo for the local preview. Payloads are never opened by this page.
+  function torrentMetadata(buffer, fallback) {
+    const bytes = new Uint8Array(buffer);
+    const decoder = new TextDecoder();
+    const invalid = () => { throw new Error('Could not read the file list from this .torrent. Try another file.'); };
+    const text = value => value instanceof Uint8Array ? decoder.decode(value) : '';
+    let position = 0;
+    let count = 0;
+
+    function numberUntil(end) {
+      const start = position;
+      while (position < bytes.length && bytes[position] !== end) {
+        if (++position - start > 17) invalid();
+      }
+      const raw = text(bytes.subarray(start, position));
+      if (bytes[position++] !== end || !/^-?(0|[1-9]\d*)$/.test(raw)) invalid();
+      const value = Number(raw);
+      if (!Number.isSafeInteger(value)) invalid();
+      return value;
+    }
+
+    function string() {
+      const length = numberUntil(58);
+      if (length < 0 || position + length > bytes.length) invalid();
+      const start = position;
+      position += length;
+      return bytes.subarray(start, position);
+    }
+
+    function read(depth = 0) {
+      if (++count > 120000 || depth > 64 || position >= bytes.length) invalid();
+      const type = bytes[position];
+      if (type === 105) {
+        position++;
+        return numberUntil(101);
+      }
+      if (type === 108 || type === 100) {
+        position++;
+        const dictionary = type === 100;
+        const value = dictionary ? new Map() : [];
+        while (bytes[position] !== 101) {
+          if (position >= bytes.length) invalid();
+          if (dictionary) value.set(text(string()), read(depth + 1));
+          else value.push(read(depth + 1));
+        }
+        position++;
+        return value;
+      }
+      if (type < 48 || type > 57) invalid();
+      return string();
+    }
+
+    const info = read()?.get?.('info');
+    if (!(info instanceof Map) || position !== bytes.length) invalid();
+    const safe = value => {
+      const part = value.replace(/[\\/\u0000-\u001f]/g, '�');
+      return part.trim() && part !== '.' && part !== '..' ? part : '_';
+    };
+    const name = safe(text(info.get('name.utf-8') || info.get('name')) || fallback);
+    const files = [];
+    const add = (path, details) => {
+      const length = details?.get?.('length');
+      if (text(details?.get?.('attr')).includes('p')) return;
+      if (!path.length || !Number.isSafeInteger(length) || length < 0) invalid();
+      files.push({ name: path.join('/'), size: length / 1024 ** 2, skipped: false });
+    };
+    const tree = info.get('file tree');
+    if (tree instanceof Map) {
+      const walk = (node, parent) => {
+        if (!(node instanceof Map)) invalid();
+        for (const [part, child] of node) {
+          if (part) walk(child, [...parent, safe(part)]);
+          else add(parent, child);
+        }
+      };
+      walk(tree, []);
+    } else if (Array.isArray(info.get('files'))) {
+      for (const file of info.get('files')) {
+        const parts = file?.get?.('path.utf-8') || file?.get?.('path');
+        if (!Array.isArray(parts) || !parts.length || parts.some(part => !(part instanceof Uint8Array))) invalid();
+        add([name, ...parts.map(part => safe(text(part)))], file);
+      }
+    } else {
+      add([name], info);
+    }
+    if (!files.length) invalid();
+    return {name, files};
+  }
+
+  async function loadTorrent(file) {
+    clearReview();
+    setError();
+    if (!file) { updateAdd(); return; }
+    if (!file.name.toLowerCase().endsWith('.torrent')) {
+      setError('Choose a .torrent file.', input('torrent'));
+      updateAdd();
+      return;
+    }
+    const request = startReview('Reading torrent metadata…');
+    try {
+      if (file.size > 12 * 1024 ** 2) throw new Error('This .torrent is too large for the preview.');
+      const data = await file.arrayBuffer();
+      if (request !== previewRequest || !dialog.open) return;
+      review = torrentMetadata(data, file.name.replace(/\.torrent$/i, ''));
+      showReview();
+    } catch (error) {
+      if (request === previewRequest && dialog.open) setError(error.message, input('torrent'));
+    } finally {
+      if (request === previewRequest) {
+        pending = false;
+        pendingMessage.hidden = true;
+        updateAdd();
+      }
+    }
+  }
+
+  function sampleReview(name) {
+    return {
+      name, example: true, files: demoFiles.map(file => ({
+        ...file, name: file.name.replaceAll(' / ', '/'), skipped: false
+      }))
+    };
+  }
+
+  function updateAdd() {
+    const chosen = review?.example ? 'Sintel Sample.torrent' : input('torrent').files[0]?.name;
+    byId('chosen-file').textContent = chosen || 'Drop a .torrent file here';
+    byId('drop-detail').textContent = review?.files.length
+      ? `${review.files.length} ${review.files.length === 1 ? 'file' : 'files'} ready to review` : 'The file list opens for review.';
+    byId('choose-label').textContent = chosen ? 'Replace…' : 'Browse files…';
+    dropZone.classList.toggle('ready', Boolean(chosen));
+    const needsReview = source === 'magnet' && input('timing').value === 'choose' && !review;
+    submit.disabled = pending;
+    submit.textContent = needsReview ? 'Fetch file list' : 'Add Torrent';
+    byId('add-total').hidden = !review;
+  }
+
+  function setSource(mode) {
+    if (source !== mode) {
+      clearReview();
+      input('torrent').value = '';
+    }
+    source = mode;
+    for (const button of dialog.querySelectorAll('[data-source]')) button.setAttribute('aria-pressed', button.dataset.source === mode);
+    for (const field of dialog.querySelectorAll('[data-field]')) field.hidden = field.dataset.field !== mode;
+    byId('magnet-options').hidden = mode !== 'magnet';
+    setError();
+    updateAdd();
+  }
+
+  function openAdd(magnet = '') {
+    if (dialog.open) return;
+    clearReview();
+    form.reset();
+    input('destination').value = preferences.folder;
+    input('timing').value = preferences.magnet;
+    input('paused').checked = preferences.paused;
+    setSource('magnet');
+    input('magnet').value = magnet;
+    dialog.showModal();
+    input('magnet').focus();
+  }
+
+  function remove(id) {
+    const index = transfers.findIndex(transfer => transfer.id === id);
+    if (index === -1) return;
+    transfers.splice(index, 1);
+    if (selected === id) selected = null;
+    tab = 'Overview';
+    render();
+    (rows.querySelector('[aria-pressed="true"]') || search).focus();
+  }
+
+  function chooseRow(id, restoreFocus) {
+    if (id !== selected) tab = 'Overview';
+    selected = id;
+    render();
+    if (restoreFocus) rows.querySelector(`[data-row="${id}"]`)?.focus();
+  }
+
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    const { row, filter: nextFilter, tab: nextTab, source: nextSource, filePreview, action } = button.dataset;
+    if (action === 'focus') {
+      preferences.collapsed = !preferences.collapsed;
+      applyPreferences(true);
+      return;
+    }
+    if (action === 'settings' || action === 'library') {
+      showPage(action, true);
+      return;
+    }
+    if (filePreview !== undefined) {
+      reviewedFile = Number(filePreview);
+      drawFileDetail();
+      return;
+    }
+    if (action === 'select-files' || action === 'clear-files') {
+      review.files.forEach(file => file.skipped = action === 'clear-files');
+      setError();
+      fileSummary();
+      return;
+    }
+    if (action === 'more-files') {
+      const previousLimit = fileLimit;
+      fileLimit += 80;
+      drawFileList();
+      fileOptions.querySelectorAll('[data-file-preview]')[previousLimit]?.focus();
+      return;
+    }
+    if (nextSource) {
+      setSource(nextSource);
+      input(nextSource === 'magnet' ? 'magnet' : 'torrent').focus();
+      return;
+    }
+    if (nextFilter) {
+      filter = nextFilter;
+      tab = 'Overview';
+      showPage('library');
+      return;
+    }
+    if (row) { chooseRow(Number(row), true); return; }
+    const transfer = transfers.find(item => item.id === selected);
+    if (nextTab && transfer) {
+      tab = nextTab;
+      drawInspector(transfer);
+      inspector.querySelector(`[data-tab="${tab}"]`).focus();
+      return;
+    }
+    if (action === 'open') openAdd();
+    if (action === 'cancel-add') dialog.close();
+    if (action === 'about') byId('about-dialog').showModal();
+    if (action === 'sample-file') {
+      clearReview();
+      input('torrent').value = '';
+      review = sampleReview('Sintel · sample torrent');
+      showReview();
+      setError();
+    }
+    if (action === 'reset-filter') {
+      filter = 'All transfers';
+      search.value = '';
+      tab = 'Overview';
+      render();
+      search.focus();
+    }
+    if (action === 'pause' && transfer) {
+      if (transfer.status === 'Paused' || transfer.status === 'Error') {
+        transfer.status = transfer.previous || (transfer.size ? 'Waiting for peers' : 'Fetching metadata');
+      } else {
+        transfer.previous = transfer.status;
+        transfer.status = 'Paused';
+      }
+      render();
+      (inspector.querySelector('[data-action="pause"]') || search).focus();
+    }
+    if (action === 'remove' && transfer) remove(transfer.id);
+    if (action === 'delete' && transfer) {
+      deleteId = transfer.id;
+      deleteDialog.returnValue = '';
+      byId('delete-message').textContent = `Remove “${transfer.name}” and its downloaded files from ${destination(transfer)} in this preview?`;
+      deleteDialog.showModal();
+    }
+  });
+
+  deleteDialog.addEventListener('close', () => {
+    if (deleteDialog.returnValue === 'delete') remove(deleteId);
+  });
+  dialog.addEventListener('close', () => {
+    if (!dialog.open) clearReview();
+    dropZone.classList.remove('is-dragging');
+  });
+  form.addEventListener('input', event => {
+    const field = event.target;
+    if (field === input('torrent')) {
+      loadTorrent(field.files[0]);
+      return;
+    }
+    if (field === input('magnet') || field.name === 'timing') {
+      clearReview();
+      updateAdd();
+    }
+    if (field.id === 'file-search') {
+      fileLimit = 80;
+      drawFileList();
+    }
+    if (field.dataset.selectFile !== undefined) {
+      review.files[Number(field.dataset.selectFile)].skipped = !field.checked;
+      fileSummary();
+    }
+    if (field === input('destination')) drawFileDetail();
+    setError();
+  });
+  byId('destination-presets').addEventListener('change', event => {
+    const choice = event.target.value;
+    if (!choice) return;
+    input('destination').value = choice === 'default' ? preferences.folder : choice;
+    event.target.value = '';
+    setError();
+    drawFileDetail();
+  });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (pending) return;
+    const link = input('magnet').value.trim();
+    const params = new URLSearchParams(link.slice(8));
+    const hashes = params.getAll('xt')
+      .filter(value => /^urn:(btih:(?:[a-f\d]{40}|[a-z2-7]{32})|btmh:1220[a-f\d]{64})$/i.test(value))
+      .map(value => value.toLowerCase());
+    if (source === 'magnet' && (!/^magnet:\?/i.test(link) || !hashes.length)) {
+      setError('Enter a magnet link that includes a BitTorrent info hash.', input('magnet'));
+      return;
+    }
+    if (source === 'magnet' && transfers.some(transfer => transfer.hashes?.some(hash => hashes.includes(hash)))) {
+      setError('This magnet is already in the library.', input('magnet'));
+      return;
+    }
+    if (source === 'file' && !review) {
+      if (err.hidden) setError('Drop or browse for a .torrent file.', input('torrent'));
+      return;
+    }
+    const name = source === 'file' ? review.name : params.get('dn')?.trim() || 'New magnet transfer';
+    if (source === 'magnet' && input('timing').value === 'choose' && !review) {
+      setError();
+      const request = startReview('Preparing sample magnet metadata…');
+      await new Promise(resolve => setTimeout(resolve, 420));
+      if (request !== previewRequest || !dialog.open) return;
+      review = sampleReview(name);
+      pending = false;
+      pendingMessage.hidden = true;
+      showReview();
+      fileOptions.querySelector('[data-file-preview]').focus();
+      return;
+    }
+    const path = savePath();
+    if (!path) {
+      setError('Enter a destination folder.', input('destination'));
+      return;
+    }
+    const files = review?.files;
+    if (files && files.every(file => file.skipped)) {
+      setError('Select at least one file to download.');
+      fileOptions.querySelector('[data-action="select-files"]').focus();
+      return;
+    }
+    const status = source === 'magnet' && !files ? 'Fetching metadata' : 'Waiting for peers';
+    const id = nextId++;
+    transfers.push({
+      id, name, file: name, category: review?.example ? 'Video' : '', destination: path,
+      source: source === 'magnet' ? 'Magnet link' : 'Torrent file', type: 'TOR', kind: review?.example ? 'video' : '',
+      status: input('paused').checked ? 'Paused' : status, previous: status,
+      files, size: files?.filter(file => !file.skipped).reduce((sum, file) => sum + file.size, 0) || 0,
+      hashes: source === 'magnet' ? hashes : undefined, down: 0, up: 0, peers: 0, progress: 0
+    });
+    selected = id;
+    filter = 'All transfers';
+    search.value = '';
+    sort.value = 'recent';
+    tab = 'Overview';
+    dialog.close();
+    showPage('library');
+    rows.querySelector(`[data-row="${id}"]`).focus();
+  });
+
+  rows.addEventListener('keydown', event => {
+    if (!event.target.matches('[data-row]')) return;
+    const adjacent = event.key === 'ArrowDown' ? event.target.nextElementSibling
+      : event.key === 'ArrowUp' ? event.target.previousElementSibling : null;
+    if (adjacent) {
+      event.preventDefault();
+      chooseRow(Number(adjacent.dataset.row), true);
+    }
+  });
+  document.addEventListener('keydown', event => {
+    if (!(isMac ? event.metaKey : event.ctrlKey) || document.querySelector('dialog[open]')) return;
+    if (event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      if (workspace.dataset.page !== 'library') showPage('library');
+      search.focus();
+      search.select();
+    } else if (event.key.toLowerCase() === 'n') {
+      event.preventDefault();
+      openAdd();
+    }
+  });
+  document.addEventListener('paste', event => {
+    if (event.target.matches('input, textarea, [contenteditable]') || document.querySelector('dialog[open]')) return;
+    const link = event.clipboardData.getData('text').trim();
+    if (!/^magnet:\?/i.test(link)) return;
+    event.preventDefault();
+    openAdd(link);
+  });
+  document.addEventListener('dragover', event => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    dropZone.classList.toggle('is-dragging', dropZone.contains(event.target));
+  });
+  dropZone.addEventListener('dragleave', event => {
+    if (!dropZone.contains(event.relatedTarget)) dropZone.classList.remove('is-dragging');
+  });
+  document.addEventListener('drop', event => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    dropZone.classList.remove('is-dragging');
+    if (document.querySelector('dialog[open]:not(#add-dialog)')) return;
+    openAdd();
+    setSource('file');
+    const file = Array.from(event.dataTransfer.files).find(item => item.name.toLowerCase().endsWith('.torrent'));
+    if (!file) {
+      setError('Drop a .torrent file.', input('torrent'));
+      return;
+    }
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input('torrent').files = transfer.files;
+    loadTorrent(file);
+    input('torrent').focus();
+  });
+  preferenceFields.addEventListener('change', event => {
+    const field = event.target;
+    preferences[field.name] = field.type === 'checkbox' ? field.checked
+      : field.name === 'folder' ? field.value.trim() || defaults.folder : field.value;
+    applyPreferences(true);
+  });
+  preferenceFields.addEventListener('submit', event => {
+    event.preventDefault();
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+  });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', drawActivity);
+  search.addEventListener('input', render);
+  sort.addEventListener('change', render);
+  byId('search-shortcut').textContent = isMac ? '⌘ F' : 'Ctrl F';
+  addFilters('state-filters', states);
+  addFilters('category-filters', categories);
+  applyPreferences();
+  render();
+})();
+</script>
+</body>
+</html>

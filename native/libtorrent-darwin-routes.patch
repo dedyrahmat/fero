@@ -1,0 +1,66 @@
+--- a/src/enum_net.cpp
++++ b/src/enum_net.cpp
+@@ -526,26 +526,32 @@
+ 
+ 	bool parse_route(int, rt_msghdr* rtm, ip_route* rt_info)
+ 	{
+-		sockaddr* rti_info[RTAX_MAX];
+-		auto* sa = reinterpret_cast<sockaddr*>(rtm + 1);
++		sockaddr_storage addresses[RTAX_MAX]{};
++		sockaddr const* rti_info[RTAX_MAX]{};
++		auto const* next = reinterpret_cast<char const*>(rtm + 1);
++		auto const* end = reinterpret_cast<char const*>(rtm) + rtm->rtm_msglen;
++#if defined(__APPLE__)
++		// Darwin packs routing socket addresses on 32-bit boundaries.
++		constexpr auto alignment = sizeof(std::uint32_t);
++#else
++		constexpr auto alignment = sizeof(long);
++#endif
+ 		for (int i = 0; i < RTAX_MAX; ++i)
+ 		{
+-			if ((rtm->rtm_addrs & (1 << i)) == 0)
+-			{
+-				rti_info[i] = nullptr;
+-				continue;
+-			}
+-			rti_info[i] = sa;
+-
+-#define ROUNDUP(a) \
+-	((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
+-
+-			sa = reinterpret_cast<sockaddr*>(reinterpret_cast<char*>(sa) + ROUNDUP(sa->sa_len));
+-
+-#undef ROUNDUP
++			if ((rtm->rtm_addrs & (1 << i)) == 0) continue;
++			auto const remaining = std::size_t(end - next);
++			if (remaining < offsetof(sockaddr, sa_data)) return false;
++			auto const* sa = reinterpret_cast<sockaddr const*>(next);
++			auto const length = std::size_t(sa->sa_len);
++			auto const padded = length > 0 ? (length + alignment - 1) & ~(alignment - 1) : alignment;
++			if (padded > remaining) return false;
++			// Netmasks may omit trailing bytes. Decode them from zero-filled storage.
++			std::memcpy(&addresses[i], sa, std::min(length, sizeof(sockaddr_storage)));
++			rti_info[i] = reinterpret_cast<sockaddr const*>(&addresses[i]);
++			next += padded;
+ 		}
+ 
+-		sa = rti_info[RTAX_GATEWAY];
++		auto const* sa = rti_info[RTAX_GATEWAY];
+ 		if (sa == nullptr
+ 			|| rti_info[RTAX_DST] == nullptr
+ 			|| rti_info[RTAX_NETMASK] == nullptr
+@@ -1236,10 +1242,11 @@
+ 		return std::vector<ip_route>();
+ 	}
+ 	socket_closer c1(s);
+-	rt_msghdr* rtm;
+-	for (char* next = buf.get(); next < end; next += rtm->rtm_msglen)
++	for (char* next = buf.get(); end - next >= std::ptrdiff_t(sizeof(rt_msghdr));)
+ 	{
+-		rtm = reinterpret_cast<rt_msghdr*>(next);
++		auto* rtm = reinterpret_cast<rt_msghdr*>(next);
++		if (rtm->rtm_msglen < sizeof(rt_msghdr) || rtm->rtm_msglen > end - next) break;
++		next += rtm->rtm_msglen;
+ 		if (rtm->rtm_version != RTM_VERSION
+ 			|| (rtm->rtm_type != RTM_ADD
+ 			&& rtm->rtm_type != RTM_GET))

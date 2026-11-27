@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title description">
+  <title id="title">Fero Magnet · Harbor Current</title>
+  <desc id="description">An ice-white horseshoe magnet on a diagonal teal-gradient and deep-blue tile.</desc>
+  <defs>
+    <linearGradient id="hybrid-current" gradientUnits="userSpaceOnUse" x1="7" y1="6" x2="89" y2="49">
+      <stop stop-color="#075963"/>
+      <stop offset="1" stop-color="#303E9F"/>
+    </linearGradient>
+    <clipPath id="hybrid-tile"><path d="M27 5H73A22 22 0 0 1 95 27V73A22 22 0 0 1 73 95H27A22 22 0 0 1 5 73V27A22 22 0 0 1 27 5Z"/></clipPath>
+  </defs>
+  <path fill="#173D70" d="M27 5H73A22 22 0 0 1 95 27V73A22 22 0 0 1 73 95H27A22 22 0 0 1 5 73V27A22 22 0 0 1 27 5Z"/>
+  <path fill="url(#hybrid-current)" clip-path="url(#hybrid-tile)" d="M0 0H100L0 100Z"/>
+  <g transform="rotate(33 50 50)">
+    <path fill="#F1F8FF" d="M26 32Q26 29 29 29H38Q41 29 41 32V53A9 9 0 0 0 59 53V32Q59 29 62 29H71Q74 29 74 32V53A24 24 0 0 1 26 53Z"/>
+    <path fill="#7CEDE1" d="M26 32Q26 29 29 29H38Q41 29 41 32V41H26Z"/>
+    <path fill="#EEAFDD" d="M59 32Q59 29 62 29H71Q74 29 74 32V41H59Z"/>
+    <path fill="#FFE09F" d="M45 15H55Q56 15 56 16V26Q56 27 55 27H45Q44 27 44 26V16Q44 15 45 15Z"/>
+  </g>
+</svg>

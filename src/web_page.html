@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" class="FERO_PALETTE" data-motion="FERO_MOTION">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fero</title>
+<style>
+:root{color-scheme:light dark;--paper:#fdfbf7;--card:#f8f1e8;--ink:#29231f;--line:#d4c8bb;--accent:#973a25;--button:#fff9f2}
+@media(prefers-color-scheme:dark){:root{--paper:#201d1a;--card:#292421;--ink:#f5eee5;--line:#51453c;--accent:#f99875;--button:#301811}}
+:root.harbor{--paper:#f6faff;--card:#eaf2fb;--ink:#122741;--line:#b3c8dd;--accent:#173d70;--button:#f1f8ff}
+@media(prefers-color-scheme:dark){:root.harbor{--paper:#101b2a;--card:#152337;--ink:#f1f8ff;--line:#405873;--accent:#7cede1;--button:#0b2a36}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.45 system-ui,sans-serif}
+main{max-width:48rem;margin:auto;padding:clamp(.9rem,4vw,1.5rem)}
+header,.row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+h1{display:flex;align-items:center;gap:.45rem;font-size:clamp(1.85rem,5vw,2.4rem);letter-spacing:-.045em;margin:0}
+h1 svg{display:block;width:2.65rem;height:2.65rem;flex:none}
+h2{font-size:1.15rem;margin:0 0 .6rem;overflow-wrap:anywhere}
+article,section{min-width:0;padding:clamp(.85rem,3vw,1.2rem);margin:.85rem 0 0;border:1px solid var(--line);border-radius:1.1rem;background:var(--card)}
+form{margin:0}
+section form+form{margin-top:.85rem}
+label{display:block;margin-bottom:.35rem;font-weight:600}
+input,button,.refresh{font:inherit;border:1px solid var(--line);border-radius:.7rem;min-height:2.75rem}
+input{min-width:0;max-width:100%;padding:.4rem .65rem}
+input[type=text]{flex:1;min-width:min(100%,12rem);background:var(--paper);color:var(--ink)}
+button,.refresh{padding:.45rem .9rem;cursor:pointer;font-weight:600;white-space:nowrap}
+button{background:var(--accent);color:var(--button);border-color:transparent}
+.refresh{color:var(--ink);text-decoration:none;background:var(--card);display:inline-flex;align-items:center}
+progress{display:block;width:100%;height:.55rem;margin:.75rem 0 .5rem;accent-color:var(--accent)}
+p{margin:.35rem 0}
+footer{margin-top:1.2rem}
+summary{cursor:pointer;font-weight:600}
+details details{margin:.5rem 0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere}
+a{color:var(--accent)}
+#upload-result:not(:empty){font-size:.9rem;margin-top:.65rem}
+button[aria-busy="true"]{cursor:wait}
+button:disabled{opacity:.7}
+article:focus-within{border-color:var(--accent)}
+@media(hover:hover){
+  button:not(:disabled):hover{filter:brightness(1.13)}
+  .refresh:hover,input[type=text]:hover{border-color:var(--accent)}
+}
+@media(prefers-reduced-motion:no-preference){
+  :root:not([data-motion="reduced"]) :is(header,section,article:nth-of-type(-n+3),#upload-result:not(:empty)){animation:enter 180ms ease-out both}
+  :root:not([data-motion="reduced"]) article:nth-of-type(2){animation-delay:20ms}
+  :root:not([data-motion="reduced"]) article:nth-of-type(3){animation-delay:40ms}
+  :root:not([data-motion="reduced"]) :is(button,.refresh){transition:filter 120ms,border-color 120ms,transform 120ms}
+  :root:not([data-motion="reduced"]) :is(article,input[type=text]){transition:border-color 120ms}
+  :root:not([data-motion="reduced"]) :is(button:not(:disabled),.refresh):active{transform:translateY(1px)}
+  :root:not([data-motion="reduced"]) button[aria-busy="true"]{animation:busy 600ms ease-in-out}
+}
+@keyframes enter{from{opacity:.72;transform:translateY(5px)}}
+@keyframes busy{50%{opacity:.9}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+</style>
+<script src="/upload.js" defer></script>
+</head>
+<body>
+<main>
+<header><h1 aria-label="Fero"><span aria-hidden="true"><!-- FERO_BRAND --></span>Fero</h1><a class="refresh" href="/">Refresh</a></header>
+<section aria-label="Add torrent">
+<form action="/magnet" method="post">
+<label for="magnet">Magnet link</label>
+<div class="row"><input id="magnet" name="magnet" type="text" required maxlength="4096" autocomplete="off" spellcheck="false"><button data-pending="Adding magnet…">Add Magnet</button></div>
+</form>
+<form id="upload">
+<label for="torrent">Torrent file</label>
+<div class="row"><input id="torrent" type="file" accept=".torrent,application/x-bittorrent" required><button>Add File</button></div>
+<p role="status" id="upload-result"></p>
+</form>
+</section>

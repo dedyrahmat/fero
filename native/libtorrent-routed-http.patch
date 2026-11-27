@@ -1,0 +1,146 @@
+--- a/include/libtorrent/aux_/session_impl.hpp
++++ b/include/libtorrent/aux_/session_impl.hpp
+@@ -19,6 +19,7 @@
+ #include "libtorrent/config.hpp"
+ #include "libtorrent/aux_/session_settings.hpp"
+ #include "libtorrent/aux_/session_interface.hpp"
++#include "libtorrent/fero_http.hpp"
+ #include "libtorrent/aux_/session_udp_sockets.hpp"
+ #include "libtorrent/aux_/socket_type.hpp"
+ #include "libtorrent/aux_/torrent_peer.hpp"
+@@ -407,6 +408,7 @@
+ 			void on_error(error_code const& ec) override;
+ 
+ 			void on_ip_change(error_code const& ec);
++			void fetch_fero_feed(std::string url, fero_feed_handler handler);
+ 			void reopen_listen_sockets(bool map_ports = true);
+ 			void reopen_network_sockets(reopen_network_flags_t options);
+ 
+--- /dev/null
++++ b/include/libtorrent/fero_http.hpp
+@@ -0,0 +1,16 @@
++#ifndef FERO_LIBTORRENT_HTTP_HPP
++#define FERO_LIBTORRENT_HTTP_HPP
++
++#include "libtorrent/fwd.hpp"
++#include "libtorrent/aux_/export.hpp"
++#include <functional>
++#include <string>
++#include <vector>
++
++namespace libtorrent {
++using fero_feed_handler = std::function<void(std::string, std::vector<char>)>;
++TORRENT_EXPORT void fero_fetch_feed(session_handle const& session, std::string url,
++	fero_feed_handler handler);
++}
++
++#endif
+--- a/src/session_impl.cpp
++++ b/src/session_impl.cpp
+@@ -82,6 +82,8 @@
+ #include "libtorrent/error.hpp"
+ #include "libtorrent/aux_/platform_util.hpp"
+ #include "libtorrent/aux_/bind_to_device.hpp"
++#include "libtorrent/aux_/http_connection.hpp"
++#include "libtorrent/aux_/parse_url.hpp"
+ #include "libtorrent/hex.hpp" // to_hex, from_hex
+ #include "libtorrent/aux_/scope_end.hpp"
+ #include "libtorrent/aux_/set_socket_buffer.hpp"
+@@ -1259,6 +1261,77 @@
+ 	{ return p == 0 ? 1 : p; }
+ }
+ 
++	void session_impl::fetch_fero_feed(std::string url, fero_feed_handler handler)
++	{
++		if (m_paused || m_abort)
++		{
++			handler("The network route is unavailable", {});
++			return;
++		}
++		bool const strict_interface = m_settings.get_bool(settings_pack::fero_strict_interface);
++		auto open = [this, url, handler = std::move(handler), strict_interface](
++			error_code const& lookup_error, std::vector<address> const& addresses) mutable {
++			if (m_paused || m_abort)
++			{
++				handler("The network route is unavailable", {});
++				return;
++			}
++			if (lookup_error)
++			{
++				handler(lookup_error.message(), {});
++				return;
++			}
++			std::optional<bind_info_t> outgoing;
++			if (strict_interface)
++			{
++				auto const routes = [&](auto const& socket) {
++					return std::any_of(addresses.begin(), addresses.end(),
++						[&](address const& ip) { return socket->can_route(ip); });
++				};
++				auto selected = std::find_if(m_listen_sockets.begin(), m_listen_sockets.end(), routes);
++				if (selected == m_listen_sockets.end())
++				{
++					handler("The selected VPN interface cannot route to this feed", {});
++					return;
++				}
++				outgoing = bind_info_t{(*selected)->device,
++					(*selected)->local_endpoint.address(), true};
++			}
++			auto const callback = [complete = std::move(handler)](error_code const& error,
++				http_parser const& parser, span<char const> body, http_connection&) mutable {
++				if (!complete) return;
++				auto done = std::move(complete);
++				bool const closed_body = error == boost::asio::error::eof && parser.header_finished()
++					&& parser.content_length() < 0 && !parser.chunked_encoding();
++				if (error && !closed_body) done(error.message(), {});
++				else if (parser.status_code() < 200 || parser.status_code() >= 300)
++					done("Feed returned HTTP " + std::to_string(parser.status_code()), {});
++				else done({}, std::vector<char>(body.begin(), body.end()));
++			};
++			auto connection = std::make_shared<http_connection>(m_io_context, m_host_resolver,
++				callback, 4 * 1024 * 1024, http_connect_handler{}, http_filter_handler{},
++				hostname_filter_handler{}
++#if TORRENT_USE_SSL
++				, &m_ssl_ctx
++#endif
++				);
++			auto const configured_proxy = proxy();
++			connection->get(url, seconds(15), &configured_proxy, 5,
++				m_settings.get_str(settings_pack::user_agent), outgoing,
++				resolver_interface::abort_on_shutdown);
++		};
++		if (!strict_interface)
++		{
++			open({}, {});
++			return;
++		}
++		error_code error;
++		auto const parts = parse_url_components(url, error);
++		if (error) open(error, {});
++		else m_host_resolver.async_resolve(std::get<2>(parts), resolver_interface::abort_on_shutdown,
++			std::move(open));
++	}
++
+ 	void session_impl::queue_tracker_request(tracker_request req
+ 		, std::weak_ptr<request_callback> c)
+ 	{
+@@ -7646,3 +7719,19 @@
+ 		catch (std::exception const&) {}
+ #endif // TORRENT_DISABLE_LOGGING
+ }
++
++namespace libtorrent {
++void fero_fetch_feed(session_handle const& session, std::string url, fero_feed_handler handler)
++{
++	auto impl = session.native_handle();
++	if (!impl)
++	{
++		handler("The transfer session is unavailable", {});
++		return;
++	}
++	auto& context = impl->get_context();
++	post(context, [impl = std::move(impl), url = std::move(url), handler = std::move(handler)]() mutable {
++		impl->fetch_fero_feed(std::move(url), std::move(handler));
++	});
++}
++}

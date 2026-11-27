@@ -1,0 +1,390 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -644,7 +644,7 @@
+ if (WIN32)
+ 	target_link_libraries(torrent-rasterbar
+ 		PUBLIC
+-			bcrypt mswsock ws2_32 iphlpapi
++			bcrypt mswsock ws2_32 iphlpapi ole32
+ 			debug dbghelp crypt32
+ 	)
+ 
+@@ -748,8 +748,11 @@
+ 	DESCRIPTION "Enables protocol extensions" DISABLED TORRENT_DISABLE_EXTENSIONS)
+ target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME i2p DEFAULT ON
+ 	DESCRIPTION "build with I2P support" DISABLED TORRENT_USE_I2P=0)
+-target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME webtorrent DEFAULT ON
++target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME webtorrent DEFAULT OFF
+ 	DESCRIPTION "build with WebTorrent support" DISABLED TORRENT_USE_RTC=0)
++if(webtorrent)
++	message(FATAL_ERROR "Fero's network modes require -Dwebtorrent=OFF")
++endif()
+ target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME logging DEFAULT ON
+ 	DESCRIPTION "build with logging" DISABLED TORRENT_DISABLE_LOGGING)
+ target_optional_compile_definitions(torrent-rasterbar PUBLIC FEATURE NAME mutable-torrents DEFAULT ON
+--- a/include/libtorrent/aux_/bind_to_device.hpp
++++ b/include/libtorrent/aux_/bind_to_device.hpp
+@@ -19,6 +19,10 @@
+ #include <netinet/in.h>
+ #endif
+ 
++#ifdef __APPLE__
++#include <net/if.h>
++#endif
++
+ namespace libtorrent { namespace aux {
+ 
+ #if defined SO_BINDTODEVICE
+@@ -107,6 +111,68 @@
+ #define TORRENT_HAS_BINDTODEVICE 0
+ 
+ #endif
++
++#ifdef TORRENT_WINDOWS
++unsigned int fero_interface_index(char const* name);
++#endif
++
++// IPv4 and IPv6 use distinct socket options on Apple and Windows.
++#if defined(__APPLE__) || defined(TORRENT_WINDOWS)
++struct fero_interface_option
++{
++	unsigned int index;
++	bool ipv6;
++	template<class Protocol>
++	int level(Protocol const&) const { return ipv6 ? IPPROTO_IPV6 : IPPROTO_IP; }
++	template<class Protocol>
++	int name(Protocol const&) const
++	{
++#ifdef TORRENT_WINDOWS
++		return ipv6 ? IPV6_UNICAST_IF : IP_UNICAST_IF;
++#else
++		return ipv6 ? IPV6_BOUND_IF : IP_BOUND_IF;
++#endif
++	}
++	template<class Protocol>
++	char const* data(Protocol const&) const { return reinterpret_cast<char const*>(&index); }
++	template<class Protocol>
++	size_t size(Protocol const&) const { return sizeof(index); }
++};
++#endif
++
++template <typename Socket>
++void fero_bind_interface(Socket& socket, char const* name, bool ipv6, error_code& ec)
++{
++	if (!name || !*name)
++	{
++		ec = make_error_code(boost::system::errc::no_such_device);
++		return;
++	}
++#if defined(TORRENT_WINDOWS)
++	unsigned int const index = fero_interface_index(name);
++	if (index == 0)
++	{
++		ec = make_error_code(boost::system::errc::no_such_device);
++		return;
++	}
++	socket.set_option(fero_interface_option{ipv6 ? index : htonl(index), ipv6}, ec);
++#elif defined(__APPLE__)
++	unsigned int const index = if_nametoindex(name);
++	if (index == 0)
++	{
++		ec = make_error_code(boost::system::errc::no_such_device);
++		return;
++	}
++	socket.set_option(fero_interface_option{index, ipv6}, ec);
++#elif defined(SO_BINDTODEVICE)
++	(void)ipv6;
++	bind_device(socket, name, ec);
++#else
++	(void)socket;
++	(void)ipv6;
++	ec = make_error_code(boost::system::errc::not_supported);
++#endif
++}
+ 
+ } }
+ 
+--- a/include/libtorrent/aux_/enum_net.hpp
++++ b/include/libtorrent/aux_/enum_net.hpp
+@@ -99,7 +99,7 @@
+ 
+ 	// returns a list of the configured IP interfaces
+ 	// on the machine
+-	TORRENT_EXTRA_EXPORT std::vector<ip_interface> enum_net_interfaces(io_context& ios
++	TORRENT_EXPORT std::vector<ip_interface> enum_net_interfaces(io_context& ios
+ 		, error_code& ec);
+ 
+ 	TORRENT_EXTRA_EXPORT std::vector<ip_route> enum_routes(io_context& ios
+--- a/include/libtorrent/aux_/http_connection.hpp
++++ b/include/libtorrent/aux_/http_connection.hpp
+@@ -49,9 +49,10 @@
+ {
+ 	std::string device;
+ 	address ip;
++	bool strict_interface = false;
+ 	bool operator==(bind_info_t const& rhs) const
+ 	{
+-		return device == rhs.device && ip == rhs.ip;
++		return device == rhs.device && ip == rhs.ip && strict_interface == rhs.strict_interface;
+ 	}
+ };
+ 
+--- a/include/libtorrent/aux_/resolver.hpp
++++ b/include/libtorrent/aux_/resolver.hpp
+@@ -37,6 +37,7 @@
+ 
+ 	void abort() override;
+ 
++	void set_numeric_only(bool value) { m_numeric_only = value; }
+ 	void set_cache_timeout(seconds timeout) override;
+ 
+ private:
+@@ -58,6 +59,7 @@
+ 
+ 	std::unordered_map<std::string, dns_cache_entry> m_cache;
+ 	std::unordered_map<std::string, failed_dns_cache_entry> m_failed_cache;
++	bool m_numeric_only = false;
+ 	io_context& m_ios;
+ 
+ 	// all lookups in this resolver are aborted on shutdown.
+--- a/include/libtorrent/settings_pack.hpp
++++ b/include/libtorrent/settings_pack.hpp
+@@ -16,6 +16,7 @@
+ 
+ #ifndef TORRENT_SETTINGS_PACK_HPP_INCLUDED
+ #define TORRENT_SETTINGS_PACK_HPP_INCLUDED
++#define FERO_LIBTORRENT_STRICT_INTERFACE 1
+ 
+ #include "libtorrent/entry.hpp"
+ #include "libtorrent/string_view.hpp"
+@@ -1083,6 +1084,9 @@
+ 			// updated) are not removed, and remain in use until they are
+ 			// naturally evicted.
+ 			apply_filter_to_dht,
++
++			// Fero requires kernel interface binding, or the socket is rejected.
++			fero_strict_interface,
+ 
+ 			max_bool_setting_internal
+ 		};
+--- a/src/enum_net.cpp
++++ b/src/enum_net.cpp
+@@ -22,6 +22,10 @@
+ #include "libtorrent/aux_/ip_helpers.hpp"
+ #ifdef TORRENT_WINDOWS
+ #include "libtorrent/aux_/win_util.hpp"
++#include <algorithm>
++#include <cstring>
++#include <netioapi.h>
++#include <objbase.h>
+ #endif
+ 
+ #include <functional>
+@@ -134,6 +138,24 @@
+ #endif
+ 
+ namespace libtorrent::aux {
++
++#ifdef TORRENT_WINDOWS
++unsigned int fero_interface_index(char const* name)
++{
++	// Libtorrent's Windows adapter names are braced GUIDs.
++	if (std::strlen(name) != 38) return 0;
++	wchar_t wide[39]{};
++	std::copy_n(name, 38, wide);
++	GUID guid{};
++	NET_LUID luid{};
++	NET_IFINDEX index{};
++	if (CLSIDFromString(wide, &guid) != S_OK
++		|| ConvertInterfaceGuidToLuid(&guid, &luid) != NO_ERROR
++		|| ConvertInterfaceLuidToIndex(&luid, &index) != NO_ERROR)
++		return 0;
++	return index;
++}
++#endif
+ 
+ namespace {
+ 
+--- a/src/escape_string.cpp
++++ b/src/escape_string.cpp
+@@ -14,6 +14,7 @@
+ 
+ #include <string>
+ #include <algorithm>
++#include <iterator>
+ #include <mutex>
+ #include <cstring>
+ #include <vector>
+--- a/src/http_connection.cpp
++++ b/src/http_connection.cpp
+@@ -308,11 +308,16 @@
+ 		{
+ 			error_code ec;
+ 			m_sock->open(m_bind_addr->ip.is_v4() ? tcp::v4() : tcp::v6(), ec);
++			if (!ec && m_bind_addr->strict_interface)
++				fero_bind_interface(*m_sock, m_bind_addr->device.c_str(), m_bind_addr->ip.is_v6(), ec);
+ #if TORRENT_HAS_BINDTODEVICE
+-			error_code ignore;
+-			bind_device(*m_sock, m_bind_addr->device.c_str(), ignore);
+-#endif
+-			m_sock->bind(tcp::endpoint(m_bind_addr->ip, 0), ec);
++			else if (!ec && !m_bind_addr->device.empty())
++			{
++				error_code ignore;
++				bind_device(*m_sock, m_bind_addr->device.c_str(), ignore);
++			}
++#endif
++			if (!ec) m_sock->bind(tcp::endpoint(m_bind_addr->ip, 0), ec);
+ 			if (ec)
+ 			{
+ 				post(m_ios, std::bind(&http_connection::callback
+@@ -531,6 +536,23 @@
+ void http_connection::connect()
+ {
+ 	TORRENT_ASSERT(m_next_ep < int(m_endpoints.size()));
++
++	// A failed connection or timeout closes the socket. Reapply the
++	// selected interface before trying another resolved address.
++	if (m_bind_addr && m_bind_addr->strict_interface && !m_sock->is_open())
++	{
++		error_code ec;
++		bool const ipv6 = m_bind_addr->ip.is_v6();
++		m_sock->open(ipv6 ? tcp::v6() : tcp::v4(), ec);
++		if (!ec) fero_bind_interface(*m_sock, m_bind_addr->device.c_str(), ipv6, ec);
++		if (!ec) m_sock->bind(tcp::endpoint(m_bind_addr->ip, 0), ec);
++		if (!ec) setup_ssl_hostname(*m_sock, m_hostname, ec);
++		if (ec)
++		{
++			callback(ec);
++			return;
++		}
++	}
+ 
+ 	std::shared_ptr<http_connection> me(shared_from_this());
+ 
+--- a/src/http_tracker_connection.cpp
++++ b/src/http_tracker_connection.cpp
+@@ -236,11 +236,17 @@
+ 			: settings.get_str(settings_pack::user_agent);
+ 
+ 		auto const ls = bind_socket();
+-		bind_info_t bi = [&ls](){
++		bool const strict_interface = settings.get_bool(settings_pack::fero_strict_interface);
++		if (strict_interface && ls.get() == nullptr)
++		{
++			fail(make_error_code(boost::system::errc::no_such_device), operation_t::sock_bind);
++			return;
++		}
++		bind_info_t bi = [&ls, strict_interface](){
+ 			if (ls.get() == nullptr)
+ 				return bind_info_t{};
+ 			else
+-				return bind_info_t{ls.device(), ls.get_local_endpoint().address()};
++				return bind_info_t{ls.device(), ls.get_local_endpoint().address(), strict_interface};
+ 		}();
+ 
+ 		// when sending stopped requests, prefer the cached DNS entry
+--- a/src/resolver.cpp
++++ b/src/resolver.cpp
+@@ -111,6 +111,11 @@
+ 			post(m_ios, [h, ec, ip]{ callback(h, ec, std::vector<address>{ip}); });
+ 			return;
+ 		}
++		if (m_numeric_only)
++		{
++			post(m_ios, [h] { callback(h, boost::asio::error::host_not_found, {}); });
++			return;
++		}
+ 		ec.clear();
+ 
+ 		auto const i = m_cache.find(host);
+--- a/src/session_impl.cpp
++++ b/src/session_impl.cpp
+@@ -537,6 +537,7 @@
+ 		validate_settings();
+ #endif
+ 		sanitize_settings();
++		m_host_resolver.set_numeric_only(m_settings.get_bool(settings_pack::fero_strict_interface));
+ 	}
+ 
+ 	template <typename Fun, typename... Args>
+@@ -1616,6 +1617,7 @@
+ 	std::shared_ptr<listen_socket_t> session_impl::setup_listener(
+ 		listen_endpoint_t const& lep, error_code& ec)
+ 	{
++		bool const strict_interface = m_settings.get_bool(settings_pack::fero_strict_interface);
+ 		int retries = m_settings.get_int(settings_pack::max_retry_port_bind);
+ 		tcp::endpoint bind_ep(lep.addr, std::uint16_t(lep.port));
+ 		udp::endpoint udp_bind_ep(lep.addr, std::uint16_t(lep.port));
+@@ -1724,7 +1726,18 @@
+ #endif // TORRENT_WINDOWS
+ 			}
+ 
+-			if (!lep.device.empty())
++			if (strict_interface)
++			{
++				fero_bind_interface(*ret->sock, lep.device.c_str(), is_v6(bind_ep), ec);
++				if (ec)
++				{
++					if (m_alerts.should_post<listen_failed_alert>())
++						m_alerts.emplace_alert<listen_failed_alert>(lep.device, bind_ep
++							, operation_t::sock_bind, ec, sock_type);
++					return ret;
++				}
++			}
++			else if (!lep.device.empty())
+ 			{
+ 				// we have an actual device we're interested in listening on, if we
+ 				// have SO_BINDTODEVICE functionality, use it now.
+@@ -1871,8 +1884,19 @@
+ 				return ret;
+ 			}
+ 
++			if (strict_interface)
++			{
++				fero_bind_interface(ret->udp_sock->sock, lep.device.c_str(), is_v6(udp_bind_ep), ec);
++				if (ec)
++				{
++					if (m_alerts.should_post<listen_failed_alert>())
++						m_alerts.emplace_alert<listen_failed_alert>(lep.device, udp_bind_ep
++							, operation_t::sock_bind, ec, udp_sock_type);
++					return ret;
++				}
++			}
+ #if TORRENT_HAS_BINDTODEVICE
+-			if (!lep.device.empty())
++			else if (!lep.device.empty())
+ 			{
+ 				bind_device(ret->udp_sock->sock, lep.device.c_str(), ec);
+ #ifndef TORRENT_DISABLE_LOGGING
+@@ -5428,6 +5452,20 @@
+ 			}
+ 			ec.assign(boost::system::errc::not_supported, generic_category());
+ 			return {};
++		}
++
++		if (m_settings.get_bool(settings_pack::fero_strict_interface))
++		{
++			if (m_outgoing_interfaces.size() != 1)
++			{
++				ec = make_error_code(boost::system::errc::no_such_device);
++				return {};
++			}
++			fero_bind_interface(s, m_outgoing_interfaces.front().c_str(), remote_address.is_v6(), ec);
++			if (ec) return {};
++			if (remote_address.is_v6()) bind_ep.address(address_v6::any());
++			s.bind(bind_ep, ec);
++			return bind_ep;
+ 		}
+ 
+ 		if (!m_outgoing_interfaces.empty())
+--- a/src/settings_pack.cpp
++++ b/src/settings_pack.cpp
+@@ -221,6 +221,7 @@
+ 		SET(disk_disable_copy_on_write, false, nullptr),
+ 		SET(allow_multiple_connections_per_pid, false, nullptr),
+ 		SET(apply_filter_to_dht, true, nullptr),
++		SET(fero_strict_interface, false, nullptr),
+ 	}});
+ 
+ 	CONSTEXPR_SETTINGS

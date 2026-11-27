@@ -1,0 +1,382 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -878,6 +878,13 @@
+ # Boost
+ find_public_dependency(Boost REQUIRED)
+ target_link_libraries(torrent-rasterbar PUBLIC Boost::headers)
++
++find_public_dependency(c-ares 1.34.8 CONFIG REQUIRED)
++if (TARGET c-ares::cares_static)
++	target_link_libraries(torrent-rasterbar PUBLIC c-ares::cares_static)
++else()
++	target_link_libraries(torrent-rasterbar PUBLIC c-ares::cares)
++endif()
+ if (Boost_MAJOR_VERSION LESS_EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
+ 	find_public_dependency(Boost REQUIRED COMPONENTS system)
+ 	target_link_libraries(torrent-rasterbar PUBLIC Boost::system)
+--- a/include/libtorrent/aux_/resolver.hpp
++++ b/include/libtorrent/aux_/resolver.hpp
+@@ -18,6 +18,7 @@
+ #include <unordered_map>
+ #include <vector>
+ #include <map>
++#include <memory>
+ 
+ #include "libtorrent/error_code.hpp"
+ #include "libtorrent/io_context.hpp"
+@@ -28,6 +29,8 @@
+ namespace libtorrent {
+ namespace aux {
+ 
++struct scoped_dns;
++
+ struct TORRENT_EXTRA_EXPORT resolver final : resolver_interface
+ {
+ 	explicit resolver(io_context& ios);
+@@ -37,12 +40,15 @@
+ 
+ 	void abort() override;
+ 
+-	void set_numeric_only(bool value) { m_numeric_only = value; }
++	void set_scoped_dns(std::string const& adapter_name, std::string const& server);
+ 	void set_cache_timeout(seconds timeout) override;
+ 
+ private:
+ 
+ 	void on_lookup(error_code const& ec, tcp::resolver::results_type ips
++		, std::string const& hostname);
++
++	void on_addresses(error_code const& ec, std::vector<address> addresses
+ 		, std::string const& hostname);
+ 
+ 	struct dns_cache_entry
+@@ -59,7 +65,7 @@
+ 
+ 	std::unordered_map<std::string, dns_cache_entry> m_cache;
+ 	std::unordered_map<std::string, failed_dns_cache_entry> m_failed_cache;
+-	bool m_numeric_only = false;
++	std::shared_ptr<scoped_dns> m_scoped_dns;
+ 	io_context& m_ios;
+ 
+ 	// all lookups in this resolver are aborted on shutdown.
+--- a/include/libtorrent/settings_pack.hpp
++++ b/include/libtorrent/settings_pack.hpp
+@@ -17,6 +17,7 @@
+ #ifndef TORRENT_SETTINGS_PACK_HPP_INCLUDED
+ #define TORRENT_SETTINGS_PACK_HPP_INCLUDED
+ #define FERO_LIBTORRENT_STRICT_INTERFACE 1
++#define FERO_LIBTORRENT_BOUND_DNS 1
+ 
+ #include "libtorrent/entry.hpp"
+ #include "libtorrent/string_view.hpp"
+@@ -402,6 +403,9 @@
+ 			// This is the STUN server used by WebTorrent to enable ICE NAT
+ 			// traversal for WebRTC. It must have the format ``hostname:port``.
+ 			webtorrent_stun_server,
++
++			// The numeric DNS server reached only via outgoing_interfaces in strict mode.
++			fero_dns_server,
+ 
+ 			max_string_setting_internal
+ 		};
+--- a/src/resolver.cpp
++++ b/src/resolver.cpp
+@@ -11,8 +11,195 @@
+ #include "libtorrent/aux_/resolver.hpp"
+ #include "libtorrent/aux_/debug.hpp"
+ #include "libtorrent/aux_/time.hpp"
++#include "libtorrent/aux_/bind_to_device.hpp"
++#include "libtorrent/aux_/socket_io.hpp"
++#include <ares.h>
++#include <boost/asio/steady_timer.hpp>
++#include <cstring>
++#ifndef TORRENT_WINDOWS
++#include <poll.h>
++#endif
+ 
+ namespace libtorrent::aux {
++
++// Poll the single configured c-ares channel on the libtorrent session executor.
++struct scoped_dns : std::enable_shared_from_this<scoped_dns>
++{
++	scoped_dns(io_context& io, std::string device, std::string const& server)
++		: timer(io), adapter_name(std::move(device))
++	{
++		error_code ec;
++		auto endpoint = parse_endpoint(server, ec);
++		if (ec || endpoint.address().is_unspecified() || endpoint.address().is_multicast()) return;
++		ipv6 = endpoint.address().is_v6();
++		static int const init_status = ares_library_init(ARES_LIB_INIT_ALL);
++		if (init_status != ARES_SUCCESS) return;
++
++		ares_options options{};
++		options.flags = ARES_FLAG_NOSEARCH;
++		char lookups[] = "b";
++		options.lookups = lookups;
++		options.timeout = 1000;
++		options.tries = 2;
++		options.sock_state_cb_data = this;
++		options.sock_state_cb = [](void* context, ares_socket_t fd, int read, int write) {
++			auto& monitored = static_cast<scoped_dns*>(context)->sockets;
++			short const events = (read ? POLLIN : 0) | (write ? POLLOUT : 0);
++			if (events) monitored[fd] = events;
++			else monitored.erase(fd);
++		};
++		if (ares_init_options(&channel, &options,
++			ARES_OPT_FLAGS | ARES_OPT_LOOKUPS | ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES | ARES_OPT_SOCK_STATE_CB) != ARES_SUCCESS)
++			return;
++		if (ares_set_servers_csv(channel, server.c_str()) != ARES_SUCCESS)
++		{
++			ares_destroy(channel);
++			channel = nullptr;
++			return;
++		}
++		ares_set_socket_configure_callback(channel, [](ares_socket_t fd, int, void* context) {
++			auto const& self = *static_cast<scoped_dns*>(context);
++			native_socket socket{fd};
++			error_code error;
++			fero_bind_interface(socket, self.adapter_name.c_str(), self.ipv6, error);
++			return error ? -1 : 0;
++		}, this);
++	}
++
++	~scoped_dns() { if (channel) ares_destroy(channel); }
++
++	void resolve(std::string const& host, resolver_interface::callback_t handler)
++	{
++		if (!channel || stopped)
++		{
++			handler(stopped ? error_code(boost::asio::error::operation_aborted)
++				: error_code(boost::asio::error::host_not_found), {});
++			return;
++		}
++		auto pending_request = std::make_unique<query>(query{*this, std::move(handler)});
++		++pending;
++		ares_addrinfo_hints hints{};
++		hints.ai_family = AF_UNSPEC;
++		hints.ai_flags = ARES_AI_NOSORT;
++		ares_getaddrinfo(channel, host.c_str(), nullptr, &hints,
++			[](void* arg, int status, int, ares_addrinfo* result) {
++				std::unique_ptr<query> request(static_cast<query*>(arg));
++				std::vector<address> addresses;
++				if (status == ARES_SUCCESS && result)
++				{
++					for (auto node = result->nodes; node; node = node->ai_next)
++						{
++						if (node->ai_family == AF_INET && node->ai_addrlen >= sizeof(sockaddr_in))
++						{
++							address_v4::bytes_type bytes{};
++							auto const* addr = reinterpret_cast<sockaddr_in const*>(node->ai_addr);
++							std::memcpy(bytes.data(), &addr->sin_addr, bytes.size());
++							addresses.emplace_back(address_v4(bytes));
++						}
++						else if (node->ai_family == AF_INET6 && node->ai_addrlen >= sizeof(sockaddr_in6))
++						{
++							address_v6::bytes_type bytes{};
++							auto const* addr = reinterpret_cast<sockaddr_in6 const*>(node->ai_addr);
++							std::memcpy(bytes.data(), &addr->sin6_addr, bytes.size());
++							addresses.emplace_back(address_v6(bytes, addr->sin6_scope_id));
++						}
++					}
++				}
++				if (result) ares_freeaddrinfo(result);
++				--request->owner.pending;
++				error_code error;
++				if (status == ARES_ECANCELLED || status == ARES_EDESTRUCTION)
++					error = boost::asio::error::operation_aborted;
++				else if (addresses.empty())
++					error = boost::asio::error::host_not_found;
++				post(request->owner.timer.get_executor(),
++					[complete = std::move(request->handler), error, result_addresses = std::move(addresses)] {
++						complete(error, result_addresses);
++					});
++			}, pending_request.release());
++		tick();
++	}
++
++	void abort()
++	{
++		stopped = true;
++		if (channel) ares_cancel(channel);
++	}
++
++private:
++	struct native_socket
++	{
++		ares_socket_t fd;
++
++		template <typename Option>
++		void set_option(Option const& option, error_code& error)
++		{
++			auto const protocol = tcp::v4();
++			if (::setsockopt(fd, option.level(protocol), option.name(protocol),
++				option.data(protocol), static_cast<ares_socklen_t>(option.size(protocol))) != 0)
++				error = error_code(last_socket_error(), system_category());
++		}
++
++		static int last_socket_error()
++		{
++#ifdef TORRENT_WINDOWS
++			return WSAGetLastError();
++#else
++			return errno;
++#endif
++		}
++	};
++
++	struct query
++	{
++		scoped_dns& owner;
++		resolver_interface::callback_t handler;
++	};
++
++	void tick()
++	{
++		if (pending == 0 || ticking) return;
++		ticking = true;
++		timer.expires_after(std::chrono::milliseconds(20));
++		timer.async_wait([weak = weak_from_this()](error_code const& ec) {
++			auto self = weak.lock();
++			if (!self || ec) return;
++			self->ticking = false;
++			std::vector<pollfd> descriptors;
++			for (auto const& entry : self->sockets)
++				descriptors.push_back({entry.first, entry.second, 0});
++
++			std::vector<ares_fd_events_t> events;
++			if (!descriptors.empty())
++			{
++#ifdef TORRENT_WINDOWS
++				WSAPoll(descriptors.data(), static_cast<ULONG>(descriptors.size()), 0);
++#else
++				::poll(descriptors.data(), static_cast<nfds_t>(descriptors.size()), 0);
++#endif
++				for (auto const& descriptor : descriptors)
++				{
++					unsigned int flags = 0;
++					if (descriptor.revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL))
++						flags |= ARES_FD_EVENT_READ;
++					if (descriptor.revents & POLLOUT) flags |= ARES_FD_EVENT_WRITE;
++					if (flags) events.push_back({descriptor.fd, flags});
++				}
++			}
++			ares_process_fds(self->channel, events.data(), events.size(), ARES_PROCESS_FLAG_NONE);
++			self->tick();
++		});
++	}
++
++	boost::asio::steady_timer timer;
++	std::string adapter_name;
++	std::map<ares_socket_t, short> sockets;
++	ares_channel_t* channel = nullptr;
++	int pending = 0;
++	bool ipv6 = false;
++	bool stopped = false;
++	bool ticking = false;
++};
+ 
+ 	resolver::resolver(io_context& ios)
+ 		: m_ios(ios)
+@@ -37,7 +224,23 @@
+ 	void resolver::on_lookup(error_code const& ec, tcp::resolver::results_type ips
+ 		, std::string const& hostname)
+ 	{
++		std::vector<address> addresses;
++		for (auto const& ip : ips) addresses.push_back(ip.endpoint().address());
++		on_addresses(ec, std::move(addresses), hostname);
++	}
++
++	void resolver::on_addresses(error_code const& ec, std::vector<address> addresses
++		, std::string const& hostname)
++	{
+ 		COMPLETE_ASYNC("resolver::on_lookup");
++		if (ec && m_scoped_dns)
++		{
++			auto const range = m_callbacks.equal_range(hostname);
++			for (auto c = range.first; c != range.second; ++c)
++				callback(std::move(c->second), ec, {});
++			m_callbacks.erase(range.first, range.second);
++			return;
++		}
+ 		if (ec)
+ 		{
+ 			failed_dns_cache_entry& ce = m_failed_cache[hostname];
+@@ -74,9 +277,7 @@
+ 
+ 		dns_cache_entry& ce = m_cache[hostname];
+ 		ce.last_seen = time_now();
+-		ce.addresses.clear();
+-		for (auto i : ips)
+-			ce.addresses.push_back(i.endpoint().address());
++		ce.addresses = std::move(addresses);
+ 
+ 		auto const range = m_callbacks.equal_range(hostname);
+ 		for (auto c = range.first; c != range.second; ++c)
+@@ -109,11 +310,6 @@
+ 		if (!ec)
+ 		{
+ 			post(m_ios, [h, ec, ip]{ callback(h, ec, std::vector<address>{ip}); });
+-			return;
+-		}
+-		if (m_numeric_only)
+-		{
+-			post(m_ios, [h] { callback(h, boost::asio::error::host_not_found, {}); });
+ 			return;
+ 		}
+ 		ec.clear();
+@@ -166,6 +362,16 @@
+ 		// the port is ignored
+ 		using namespace std::placeholders;
+ 		ADD_OUTSTANDING_ASYNC("resolver::on_lookup");
++		if (m_scoped_dns)
++		{
++			post(m_ios, [this, host] {
++				m_scoped_dns->resolve(host, [this, host](error_code const& error
++					, std::vector<address> const& addresses) {
++					on_addresses(error, addresses, host);
++				});
++			});
++			return;
++		}
+ 		if (flags & resolver_interface::abort_on_shutdown)
+ 		{
+ 			m_resolver.async_resolve(host, "80", std::bind(&resolver::on_lookup, this, _1, _2
+@@ -180,7 +386,13 @@
+ 
+ 	void resolver::abort()
+ 	{
++		if (m_scoped_dns) m_scoped_dns->abort();
+ 		m_resolver.cancel();
++	}
++
++	void resolver::set_scoped_dns(std::string const& adapter_name, std::string const& server)
++	{
++		m_scoped_dns = std::make_shared<scoped_dns>(m_ios, adapter_name, server);
+ 	}
+ 
+ 	void resolver::set_cache_timeout(seconds const timeout)
+--- a/src/session_impl.cpp
++++ b/src/session_impl.cpp
+@@ -537,7 +537,9 @@
+ 		validate_settings();
+ #endif
+ 		sanitize_settings();
+-		m_host_resolver.set_numeric_only(m_settings.get_bool(settings_pack::fero_strict_interface));
++		if (m_settings.get_bool(settings_pack::fero_strict_interface))
++			m_host_resolver.set_scoped_dns(m_settings.get_str(settings_pack::outgoing_interfaces)
++				, m_settings.get_str(settings_pack::fero_dns_server));
+ 	}
+ 
+ 	template <typename Fun, typename... Args>
+--- a/src/settings_pack.cpp
++++ b/src/settings_pack.cpp
+@@ -127,7 +127,8 @@
+ 		SET(peer_fingerprint, "-LT2120-", nullptr),
+ 		SET(dht_bootstrap_nodes, "dht.libtorrent.org:25401", &session_impl::update_dht_bootstrap_nodes),
+ 		SET(natpmp_gateway, "", nullptr),
+-		SET(webtorrent_stun_server, "stun.l.google.com:19302", nullptr)
++		SET(webtorrent_stun_server, "stun.l.google.com:19302", nullptr),
++		SET(fero_dns_server, "", nullptr)
+ 	}});
+ 
+ 	CONSTEXPR_SETTINGS

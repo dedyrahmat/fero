@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title description">
+  <title id="title">Fero Magnet · Current</title>
+  <desc id="description">A horseshoe magnet pulling in a square piece. Teal to ultramarine palette.</desc>
+  <defs>
+    <linearGradient id="current-tile" gradientUnits="userSpaceOnUse" x1="8" y1="7" x2="94" y2="94"><stop stop-color="#075963"/><stop offset="1" stop-color="#303E9F"/></linearGradient>
+  </defs>
+  <path fill="url(#current-tile)" d="M27 5H73A22 22 0 0 1 95 27V73A22 22 0 0 1 73 95H27A22 22 0 0 1 5 73V27A22 22 0 0 1 27 5Z"/>
+  <g transform="rotate(33 50 50)">
+    <path fill="#EEFDFB" d="M26 32Q26 29 29 29H38Q41 29 41 32V53A9 9 0 0 0 59 53V32Q59 29 62 29H71Q74 29 74 32V53A24 24 0 0 1 26 53Z"/>
+    <path fill="#7CEDE1" d="M26 32Q26 29 29 29H38Q41 29 41 32V41H26ZM59 32Q59 29 62 29H71Q74 29 74 32V41H59ZM45 15H55Q56 15 56 16V26Q56 27 55 27H45Q44 27 44 26V16Q44 15 45 15Z"/>
+  </g>
+</svg>

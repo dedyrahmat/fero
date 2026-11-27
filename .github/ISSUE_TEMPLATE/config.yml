@@ -1,0 +1,4 @@
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/dedyrahmat/fero/security/advisories/new
+    about: Use private reporting for security issues.
